@@ -1,0 +1,7 @@
+{
+  "name": "Copy of Copy of GK Performance Pro – Formação de Goleiros",
+  "description": "A professional management platform for goalkeeper training, evaluation, and scouting. Features technical, tactical, physical, and behavioral tracking from Sub-8 to Professional levels.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
