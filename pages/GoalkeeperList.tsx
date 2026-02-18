@@ -132,6 +132,15 @@ const GoalkeeperList: React.FC = () => {
     navigate('/avaliacoes', { state: { keeperId } });
   };
 
+  const getStatusStyle = (pos: string) => {
+    switch (pos) {
+      case 'Titular': return 'bg-green-500/20 text-green-500';
+      case 'Reserva': return 'bg-gray-800 text-gray-400';
+      case 'Avaliação': return 'bg-amber-500/20 text-amber-500 border border-amber-500/30';
+      default: return 'bg-gray-800 text-gray-400';
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -210,7 +219,7 @@ const GoalkeeperList: React.FC = () => {
             <div className="pt-10 p-6 relative">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-xl font-bold text-white truncate pr-2">{keeper.name}</h3>
-                <span className={`shrink-0 px-2 py-0.5 rounded text-[10px] font-black uppercase ${keeper.position === 'Titular' ? 'bg-green-500/20 text-green-500' : 'bg-gray-800 text-gray-400'}`}>
+                <span className={`shrink-0 px-2 py-0.5 rounded text-[10px] font-black uppercase ${getStatusStyle(keeper.position)}`}>
                   {keeper.position}
                 </span>
               </div>
@@ -317,11 +326,11 @@ const GoalkeeperList: React.FC = () => {
                     <div className="space-y-1">
                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Status no Elenco</label>
                        <div className="flex gap-2">
-                         {['Titular', 'Reserva'].map(pos => (
+                         {['Titular', 'Reserva', 'Avaliação'].map(pos => (
                            <button 
                              key={pos}
                              onClick={() => setFormData({...formData, position: pos as any})}
-                             className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg border transition-all ${formData.position === pos ? 'bg-gold border-gold text-black' : 'bg-black border-gray-800 text-gray-500'}`}
+                             className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg border transition-all ${formData.position === pos ? 'bg-gold border-gold text-black shadow-lg shadow-gold/20' : 'bg-black border-gray-800 text-gray-500 hover:border-gray-600'}`}
                            >
                              {pos}
                            </button>

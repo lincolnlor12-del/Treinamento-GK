@@ -7,7 +7,7 @@ export interface Goalkeeper {
   birthDate: string;
   photo?: string;
   category: Category;
-  position: 'Titular' | 'Reserva';
+  position: 'Titular' | 'Reserva' | 'Avaliação';
   height: number;
   weight: number;
   wingspan: number;

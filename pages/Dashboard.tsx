@@ -16,7 +16,10 @@ import {
   ArrowUpRight,
   ShieldAlert,
   Search,
-  ShieldX
+  ShieldX,
+  UserPlus,
+  ArrowRight,
+  UserCheck
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -35,10 +38,10 @@ import {
 import { useGoalkeepers } from '../context/GoalkeeperContext';
 import { CATEGORIES } from '../constants';
 
-const StatCard = ({ title, value, icon: Icon, trend, color, onClick, negative = false }: any) => (
+const StatCard = ({ title, value, icon: Icon, trend, color, onClick, negative = false, activeFilter = false }: any) => (
   <div 
     onClick={onClick}
-    className={`bg-card border border-gray-800 rounded-2xl p-6 transition-all hover:border-gray-700 ${onClick ? 'cursor-pointer hover:bg-gray-900/50' : ''} group shadow-lg`}
+    className={`bg-card border ${activeFilter ? 'border-amber-500/50 shadow-amber-500/5' : 'border-gray-800'} rounded-2xl p-6 transition-all hover:border-gray-700 ${onClick ? 'cursor-pointer hover:bg-gray-900/50' : ''} group shadow-lg`}
   >
     <div className="flex items-start justify-between">
       <div>
@@ -62,11 +65,22 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { keepers, scouts } = useGoalkeepers();
   const [selectedDashboardCategory, setSelectedDashboardCategory] = useState<string>('Todas');
+  const [showOnlyEvaluation, setShowOnlyEvaluation] = useState<boolean>(false);
 
   const filteredKeepers = useMemo(() => {
-    if (selectedDashboardCategory === 'Todas') return keepers;
-    return keepers.filter(k => k.category === selectedDashboardCategory);
-  }, [keepers, selectedDashboardCategory]);
+    let base = keepers;
+    if (selectedDashboardCategory !== 'Todas') {
+      base = base.filter(k => k.category === selectedDashboardCategory);
+    }
+    if (showOnlyEvaluation) {
+      base = base.filter(k => k.position === 'Avaliação');
+    }
+    return base;
+  }, [keepers, selectedDashboardCategory, showOnlyEvaluation]);
+
+  const evaluationKeepersCount = useMemo(() => {
+    return keepers.filter(k => k.position === 'Avaliação').length;
+  }, [keepers]);
 
   const filteredKeeperIds = useMemo(() => filteredKeepers.map(k => k.id), [filteredKeepers]);
 
@@ -76,7 +90,6 @@ const Dashboard: React.FC = () => {
 
   const aggregates = useMemo(() => {
     return filteredScouts.reduce((acc, s) => {
-      // Usamos tanto os erros técnicos gerais quanto os erros críticos específicos (decisivos)
       const technicalErrors = Object.values(s.actions || {}).reduce((sum, a) => sum + a.neg, 0);
       const criticalErrors = s.specialActions?.erroCritico || 0;
       const superSaves = s.specialActions?.superSave || 0;
@@ -89,7 +102,7 @@ const Dashboard: React.FC = () => {
 
       return {
         superSaves: acc.superSaves + superSaves,
-        technicalErrors: acc.technicalErrors + criticalErrors, // Focamos o card principal nos decisivos
+        technicalErrors: acc.technicalErrors + criticalErrors,
         goalsConceded: acc.goalsConceded + goalsConceded,
         cleanSheets: acc.cleanSheets + (s.cleanSheet ? 1 : 0),
         totalSaves: acc.totalSaves + totalSaves,
@@ -124,8 +137,8 @@ const Dashboard: React.FC = () => {
 
   const categoryPerformance = useMemo(() => {
     return CATEGORIES.filter(c => c !== 'Coordenador').map(cat => {
-      const catKeepers = keepers.filter(k => k.category === cat);
-      const catScouts = scouts.filter(s => catKeepers.some(k => k.id === s.goalkeeperId));
+      const catKeepers = filteredKeepers.filter(k => k.category === cat);
+      const catScouts = filteredScouts.filter(s => catKeepers.some(k => k.id === s.goalkeeperId));
       
       let score = 0;
       if (catScouts.length > 0) {
@@ -142,7 +155,7 @@ const Dashboard: React.FC = () => {
         count: catKeepers.length
       };
     }).filter(c => c.count > 0 || c.name === selectedDashboardCategory);
-  }, [keepers, scouts, selectedDashboardCategory]);
+  }, [filteredKeepers, filteredScouts, selectedDashboardCategory]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 max-w-7xl mx-auto">
@@ -152,6 +165,15 @@ const Dashboard: React.FC = () => {
           <p className="text-gray-400 mt-1">Indicadores globais de rendimento individual e coletivo</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {/* Toggle para Modo Avaliação */}
+          <button 
+            onClick={() => setShowOnlyEvaluation(!showOnlyEvaluation)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all shadow-md text-[10px] font-black uppercase tracking-widest ${showOnlyEvaluation ? 'bg-amber-500 border-amber-500 text-black shadow-amber-500/20' : 'bg-gray-900 border-gray-800 text-gray-500 hover:border-gray-700'}`}
+          >
+            <UserCheck size={14} />
+            {showOnlyEvaluation ? 'Modo Avaliação: ON' : 'Apenas em Avaliação'}
+          </button>
+
           <div className="flex items-center gap-2 px-3 py-2 bg-gray-900 border border-gray-800 rounded-xl focus-within:border-gold transition-colors shadow-inner">
             <Filter size={14} className="gold-text" />
             <select 
@@ -175,6 +197,7 @@ const Dashboard: React.FC = () => {
           icon={ShieldCheck} 
           trend={`Gols Zero`} 
           color="blue" 
+          activeFilter={showOnlyEvaluation}
           onClick={() => navigate('/scout')}
         />
         <StatCard 
@@ -183,6 +206,7 @@ const Dashboard: React.FC = () => {
           icon={Zap} 
           trend={`Milagres`} 
           color="gold" 
+          activeFilter={showOnlyEvaluation}
           onClick={() => navigate('/scout')}
         />
         <StatCard 
@@ -192,84 +216,136 @@ const Dashboard: React.FC = () => {
           trend={`Alerta Crítico`} 
           color="red" 
           negative={true}
+          activeFilter={showOnlyEvaluation}
           onClick={() => navigate('/scout')}
         />
         <StatCard 
-          title="Gols Sofridos" 
-          value={aggregates.goalsConceded.toString()} 
-          icon={ShieldX} 
-          trend={`Total`} 
-          color="gray" 
-          negative={true}
-          onClick={() => navigate('/scout')}
+          title="Atletas em Avaliação" 
+          value={evaluationKeepersCount.toString()} 
+          icon={UserPlus} 
+          trend={`Período Teste`} 
+          color="amber" 
+          activeFilter={showOnlyEvaluation}
+          onClick={() => setShowOnlyEvaluation(!showOnlyEvaluation)}
         />
       </div>
 
+      {showOnlyEvaluation && (
+        <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-2xl flex items-center justify-between animate-in slide-in-from-top-2">
+           <div className="flex items-center gap-3">
+              <AlertTriangle className="text-amber-500" size={20} />
+              <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest">
+                Exibindo apenas dados de atletas em período de avaliação.
+              </p>
+           </div>
+           <button onClick={() => setShowOnlyEvaluation(false)} className="text-[10px] font-bold text-amber-500 underline uppercase">Limpar Filtro</button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-card border border-gray-800 rounded-2xl p-6 relative overflow-hidden group shadow-2xl">
-          <div className="absolute top-0 right-0 w-32 h-32 gold-gradient opacity-[0.03] rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl"></div>
-          <div className="flex items-center justify-between mb-8">
-            <div>
+        <div className="lg:col-span-2 space-y-8">
+          {/* Chart Section */}
+          <div className="bg-card border border-gray-800 rounded-2xl p-6 relative overflow-hidden group shadow-2xl">
+            <div className="absolute top-0 right-0 w-32 h-32 gold-gradient opacity-[0.03] rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl"></div>
+            <div className="flex items-center justify-between mb-8">
               <h2 className="text-xl font-bold text-white uppercase tracking-tighter flex items-center gap-2">
-                Evolução Técnica
+                Evolução Técnica {showOnlyEvaluation && <span className="text-amber-500">(Avaliação)</span>}
                 <span className="text-[10px] bg-gold/10 text-gold px-2 py-0.5 rounded font-black uppercase border border-gold/20">
                   {selectedDashboardCategory}
                 </span>
               </h2>
             </div>
+            <div className="h-[320px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={categoryPerformance}>
+                  <defs>
+                    <linearGradient id="colorPerf" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={showOnlyEvaluation ? "#f59e0b" : "#D4AF37"} stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor={showOnlyEvaluation ? "#f59e0b" : "#D4AF37"} stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#222" />
+                  <XAxis dataKey="name" stroke="#555" fontSize={10} tickLine={false} axisLine={false} tick={{fontWeight: 'bold', fill: '#666'}} />
+                  <YAxis stroke="#555" fontSize={10} tickLine={false} axisLine={false} domain={[0, 100]} tick={{fontWeight: 'bold', fill: '#666'}} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#111', border: '1px solid #333', borderRadius: '12px', fontSize: '10px', fontWeight: 'bold' }}
+                    itemStyle={{ color: showOnlyEvaluation ? '#f59e0b' : '#D4AF37' }}
+                  />
+                  <Area type="monotone" dataKey="avg" stroke={showOnlyEvaluation ? "#f59e0b" : "#D4AF37"} fillOpacity={1} fill="url(#colorPerf)" strokeWidth={3} animationDuration={1500} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-          <div className="h-[320px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={categoryPerformance}>
-                <defs>
-                  <linearGradient id="colorPerf" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#D4AF37" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#222" />
-                <XAxis dataKey="name" stroke="#555" fontSize={10} tickLine={false} axisLine={false} tick={{fontWeight: 'bold', fill: '#666'}} />
-                <YAxis stroke="#555" fontSize={10} tickLine={false} axisLine={false} domain={[0, 100]} tick={{fontWeight: 'bold', fill: '#666'}} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#111', border: '1px solid #333', borderRadius: '12px', fontSize: '10px', fontWeight: 'bold' }}
-                  itemStyle={{ color: '#D4AF37' }}
-                />
-                <Area type="monotone" dataKey="avg" stroke="#D4AF37" fillOpacity={1} fill="url(#colorPerf)" strokeWidth={3} animationDuration={1500} />
-              </AreaChart>
-            </ResponsiveContainer>
+
+          {/* Atletas em Avaliação Shortcut List */}
+          <div className="bg-card border border-gray-800 rounded-2xl p-6 shadow-2xl overflow-hidden relative">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-white uppercase tracking-tighter flex items-center gap-2">
+                <UserPlus className="text-amber-500" size={20} />
+                Monitoramento: Atletas em Avaliação
+              </h2>
+              <button onClick={() => navigate('/goleiros')} className="text-[10px] font-black text-amber-500 uppercase hover:underline flex items-center gap-1">
+                Ver todos <ArrowRight size={12} />
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {keepers.filter(k => k.position === 'Avaliação').length > 0 ? keepers.filter(k => k.position === 'Avaliação').slice(0, 6).map(k => (
+                <div key={k.id} className="flex items-center gap-4 p-4 bg-black/40 border border-gray-800 rounded-xl hover:border-amber-500/30 transition-all group">
+                  <div className="w-12 h-12 rounded-xl bg-gray-900 border border-gray-800 overflow-hidden shrink-0">
+                    {k.photo ? <img src={k.photo} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-amber-500 font-black">{k.name.charAt(0)}</div>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-white truncate">{k.name}</p>
+                    <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">{k.category} • {k.clubTime || 'Período Inicial'}</p>
+                  </div>
+                  <button onClick={() => navigate('/avaliacoes', { state: { keeperId: k.id } })} className="p-2 bg-amber-500/10 text-amber-500 rounded-lg opacity-0 group-hover:opacity-100 transition-all">
+                    <Target size={16} />
+                  </button>
+                </div>
+              )) : (
+                <div className="col-span-full py-10 text-center border-2 border-dashed border-gray-800 rounded-2xl">
+                  <p className="text-gray-600 font-bold uppercase text-[10px] tracking-widest">Nenhum atleta em avaliação no momento</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="bg-card border border-gray-800 rounded-2xl p-6 flex flex-col shadow-2xl">
-          <h2 className="text-xl font-bold text-white mb-6 uppercase tracking-tighter flex items-center gap-2">
-            <ShieldAlert className="text-red-500" size={20} />
-            Alertas de Falha
-          </h2>
-          <div className="flex-1 space-y-4 overflow-y-auto custom-scrollbar pr-2">
-            {technicalCorrections.length > 0 ? technicalCorrections.map((item, idx) => (
-              <div key={idx} className={`p-4 bg-black border ${item.critical ? 'border-red-600/50 shadow-lg shadow-red-900/10' : 'border-gray-800'} rounded-xl group/item transition-all`}>
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-[11px] font-black text-white uppercase truncate">{item.keeperName}</span>
-                  <span className={`px-1.5 py-0.5 rounded ${item.critical ? 'bg-red-600 text-white' : 'bg-red-500/10 text-red-500'} text-[9px] font-black`}>
-                    {item.errorCount} Erros {item.critical && '!!'}
-                  </span>
+        <div className="space-y-8">
+          {/* Alerts Panel */}
+          <div className="bg-card border border-gray-800 rounded-2xl p-6 flex flex-col shadow-2xl h-fit">
+            <h2 className="text-xl font-bold text-white mb-6 uppercase tracking-tighter flex items-center gap-2">
+              <ShieldAlert className="text-red-500" size={20} />
+              Alertas de Falha {showOnlyEvaluation && <span className="text-[8px] text-amber-500">(Filtro On)</span>}
+            </h2>
+            <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+              {technicalCorrections.length > 0 ? technicalCorrections.map((item, idx) => (
+                <div key={idx} className={`p-4 bg-black border ${item.critical ? 'border-red-600/50 shadow-lg shadow-red-900/10' : 'border-gray-800'} rounded-xl group/item transition-all`}>
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-[11px] font-black text-white uppercase truncate">{item.keeperName}</span>
+                    <span className={`px-1.5 py-0.5 rounded ${item.critical ? 'bg-red-600 text-white' : 'bg-red-500/10 text-red-500'} text-[9px] font-black`}>
+                      {item.errorCount} Erros {item.critical && '!!'}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 font-medium">Partida: vs {item.opponent}</p>
+                  {item.critical && <p className="text-[8px] text-red-500 font-black uppercase mt-2 animate-pulse">Falha Decisiva Identificada</p>}
                 </div>
-                <p className="text-[10px] text-gray-500 font-medium">Partida: vs {item.opponent}</p>
-                {item.critical && <p className="text-[8px] text-red-500 font-black uppercase mt-2 animate-pulse">Falha Decisiva Identificada</p>}
-              </div>
-            )) : (
-              <div className="h-full flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-gray-800 rounded-2xl">
-                <ShieldCheck size={32} className="text-gray-700 mb-2" />
-                <p className="text-[10px] text-gray-500 font-bold uppercase">Sem registros de falhas técnicas</p>
-              </div>
-            )}
+              )) : (
+                <div className="py-10 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-gray-800 rounded-2xl">
+                  <ShieldCheck size={32} className="text-gray-700 mb-2" />
+                  <p className="text-[10px] text-gray-500 font-bold uppercase">Sem registros {showOnlyEvaluation ? 'em avaliação' : ''}</p>
+                </div>
+              )}
+            </div>
+            <button 
+              onClick={() => navigate('/avaliacoes')}
+              className="w-full mt-6 py-3 bg-gray-900 border border-gray-800 rounded-xl text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-white transition-all"
+            >
+              Análise Individual
+            </button>
           </div>
-          <button 
-            onClick={() => navigate('/avaliacoes')}
-            className="w-full mt-6 py-3 bg-gray-900 border border-gray-800 rounded-xl text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-white transition-all"
-          >
-            Análise Individual
-          </button>
         </div>
       </div>
     </div>
