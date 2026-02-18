@@ -8,7 +8,8 @@ import {
   LayoutDashboard, 
   Target, 
   Shield,
-  Briefcase
+  Briefcase,
+  HeartPulse
 } from 'lucide-react';
 import { Category } from './types';
 
@@ -24,6 +25,7 @@ export const NAVIGATION = [
   { name: 'Avaliações', icon: <ClipboardCheck size={20} />, path: '/avaliacoes' },
   { name: 'Treinamentos', icon: <Dumbbell size={20} />, path: '/treinamentos' },
   { name: 'Scout de Jogo', icon: <Target size={20} />, path: '/scout' },
+  { name: 'Interdisciplinar', icon: <HeartPulse size={20} />, path: '/interdisciplinar' },
   { name: 'Relatórios', icon: <BarChart3 size={20} />, path: '/relatorios' },
 ];
 

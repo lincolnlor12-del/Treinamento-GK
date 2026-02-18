@@ -1,21 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Radar, 
-  RadarChart, 
-  PolarGrid, 
-  PolarAngleAxis, 
-  PolarRadiusAxis, 
-  ResponsiveContainer,
-  Tooltip,
-  Legend,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid
-} from 'recharts';
-import { Download, Brain, TrendingUp, Award, Zap, User, Shield, Target, Activity, FileText, Play, Link as LinkIcon } from 'lucide-react';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell } from 'recharts';
+import { Download, Brain, TrendingUp, Award, Zap, User, Shield, Target, Activity, FileText, Play, Link as LinkIcon, Clock, Crosshair, Goal, X as CloseIcon } from 'lucide-react';
 import { getPerformanceSummary } from '../geminiService';
 import { useGoalkeepers } from '../context/GoalkeeperContext';
 
@@ -25,39 +11,17 @@ const ReportsPage: React.FC = () => {
   const [summary, setSummary] = useState('Selecione um goleiro para iniciar a análise inteligente...');
   const [loadingAI, setLoadingAI] = useState(false);
 
-  const selectedKeeper = useMemo(() => 
-    keepers.find(k => k.id === selectedKeeperId), 
-    [keepers, selectedKeeperId]
-  );
+  const selectedKeeper = useMemo(() => keepers.find(k => k.id === selectedKeeperId), [keepers, selectedKeeperId]);
+  const keeperEvaluations = useMemo(() => evaluations.filter(e => e.goalkeeperId === selectedKeeperId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [evaluations, selectedKeeperId]);
+  const keeperScouts = useMemo(() => scouts.filter(s => s.goalkeeperId === selectedKeeperId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [scouts, selectedKeeperId]);
 
-  const keeperEvaluations = useMemo(() => 
-    evaluations.filter(e => e.goalkeeperId === selectedKeeperId)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-    [evaluations, selectedKeeperId]
-  );
-
-  const keeperScouts = useMemo(() => 
-    scouts.filter(s => s.goalkeeperId === selectedKeeperId)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-    [scouts, selectedKeeperId]
-  );
-
-  // Radar Data based on the latest evaluation
   const radarData = useMemo(() => {
     const latest = keeperEvaluations[0];
-    if (!latest) return [
-      { subject: 'Defensivo', A: 0, fullMark: 5 },
-      { subject: 'Ofensivo', A: 0, fullMark: 5 },
-      { subject: 'Tático', A: 0, fullMark: 5 },
-      { subject: 'Físico', A: 0, fullMark: 5 },
-      { subject: 'Comportamental', A: 0, fullMark: 5 },
-    ];
-
+    if (!latest) return [{ subject: 'Defensivo', A: 0, fullMark: 5 }, { subject: 'Ofensivo', A: 0, fullMark: 5 }, { subject: 'Tático', A: 0, fullMark: 5 }, { subject: 'Físico', A: 0, fullMark: 5 }, { subject: 'Comportamental', A: 0, fullMark: 5 }];
     const calcAvg = (obj: Record<string, number>) => {
       const vals = Object.values(obj);
       return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
     };
-
     return [
       { subject: 'Defensivo', A: calcAvg(latest.technicalDefensive), fullMark: 5 },
       { subject: 'Ofensivo', A: calcAvg(latest.technicalOffensive), fullMark: 5 },
@@ -67,68 +31,46 @@ const ReportsPage: React.FC = () => {
     ];
   }, [keeperEvaluations]);
 
-  // Aggregate Scout Metrics
   const scoutStats = useMemo(() => {
-    if (keeperScouts.length === 0) return { totalSaves: 0, goalsConceded: 0, cleanSheets: 0, avgSaves: 0 };
-    
-    const totalSaves = keeperScouts.reduce((sum, s) => 
-      sum + (s.specialActions?.defesaBasica || 0) + (s.specialActions?.defesaDificil || 0) + (s.specialActions?.superSave || 0), 0);
+    if (keeperScouts.length === 0) return { totalSaves: 0, goalsConceded: 0, cleanSheets: 0, avgSaves: 0, minutesPlayed: 0, games: 0, assists: 0, goalsScored: 0 };
+    const totalSaves = keeperScouts.reduce((sum, s) => sum + (s.specialActions?.defesaBasica || 0) + (s.specialActions?.defesaDificil || 0) + (s.specialActions?.superSave || 0), 0);
     const cleanSheets = keeperScouts.filter(s => s.cleanSheet).length;
-    
-    // In our logic, each scout is 1 game. If not clean sheet, assume at least 1 goal for stats
-    const goalsConceded = keeperScouts.reduce((sum, s) => sum + (s.cleanSheet ? 0 : 1), 0);
-
-    return {
-      totalSaves,
-      goalsConceded,
-      cleanSheets,
-      avgSaves: (totalSaves / keeperScouts.length).toFixed(1),
-      games: keeperScouts.length
-    };
+    const goalsConceded = keeperScouts.reduce((sum, s) => sum + Object.values(s.goalZones || {}).reduce((zsum, z) => zsum + (z.goals || 0), 0), 0);
+    const minutesPlayed = keeperScouts.reduce((sum, s) => sum + (s.minutesPlayed || 0), 0);
+    const assists = keeperScouts.reduce((sum, s) => sum + (s.assists || 0), 0);
+    const goalsScored = keeperScouts.reduce((sum, s) => sum + (s.goalsScored || 0), 0);
+    return { totalSaves, goalsConceded, cleanSheets, avgSaves: (totalSaves / (keeperScouts.length || 1)).toFixed(1), games: keeperScouts.length, minutesPlayed, assists, goalsScored };
   }, [keeperScouts]);
 
-  // Ranking calculation
-  const ranking = useMemo(() => {
-    return keepers.map(k => {
-      const kEvals = evaluations.filter(e => e.goalkeeperId === k.id);
-      const latest = kEvals.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-      
-      let score = 0;
-      if (latest) {
-        const allScores = [
-          ...Object.values(latest.technicalDefensive),
-          ...Object.values(latest.technicalOffensive),
-          ...Object.values(latest.tactical),
-          ...Object.values(latest.physical),
-          ...Object.values(latest.behavioral),
-        ];
-        score = allScores.length > 0 ? allScores.reduce((a, b) => a + b, 0) / allScores.length : 0;
-      }
-      
-      return {
-        id: k.id,
-        name: k.name,
-        category: k.category,
-        score: parseFloat(score.toFixed(1)),
-        photo: k.photo
-      };
-    }).sort((a, b) => b.score - a.score);
-  }, [keepers, evaluations]);
+  const pitchGoalOriginData = useMemo(() => {
+    const originMap: Record<number, number> = {};
+    keeperScouts.forEach(s => Object.entries(s.pitchZones || {}).forEach(([zone, count]) => { originMap[parseInt(zone)] = (originMap[parseInt(zone)] || 0) + count; }));
+    return originMap;
+  }, [keeperScouts]);
+
+  const goalMouthConcedeData = useMemo(() => {
+    const concedeMap: Record<number, number> = {};
+    keeperScouts.forEach(s => Object.entries(s.goalZones || {}).forEach(([zone, data]) => { concedeMap[parseInt(zone)] = (concedeMap[parseInt(zone)] || 0) + (data.goals || 0); }));
+    return concedeMap;
+  }, [keeperScouts]);
+
+  const ranking = useMemo(() => keepers.map(k => {
+    const kEvals = evaluations.filter(e => e.goalkeeperId === k.id);
+    const latest = kEvals.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+    let score = 0;
+    if (latest) {
+      const allScores = [...Object.values(latest.technicalDefensive), ...Object.values(latest.technicalOffensive), ...Object.values(latest.tactical), ...Object.values(latest.physical), ...Object.values(latest.behavioral)];
+      score = allScores.length > 0 ? allScores.reduce((a, b) => a + b, 0) / allScores.length : 0;
+    }
+    return { id: k.id, name: k.name, category: k.category, score: parseFloat(score.toFixed(1)), photo: k.photo };
+  }).sort((a, b) => b.score - a.score), [keepers, evaluations]);
 
   useEffect(() => {
     const fetchAI = async () => {
       if (!selectedKeeper) return;
       setLoadingAI(true);
-      const res = await getPerformanceSummary(
-        selectedKeeper.name, 
-        radarData, 
-        { 
-          totalSaves: scoutStats.totalSaves, 
-          cleanSheets: scoutStats.cleanSheets,
-          totalGames: scoutStats.games 
-        }
-      );
-      setSummary(res || 'Não foi possível gerar a análise.');
+      const res = await getPerformanceSummary(selectedKeeper.name, radarData, { totalSaves: scoutStats.totalSaves, cleanSheets: scoutStats.cleanSheets, totalGames: scoutStats.games });
+      setSummary(res || 'Análise não disponível.');
       setLoadingAI(false);
     };
     if (selectedKeeperId) fetchAI();
@@ -136,295 +78,130 @@ const ReportsPage: React.FC = () => {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12 animate-in fade-in duration-500">
-      {/* Header & Selector */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl font-bold text-white uppercase tracking-tighter">Relatórios <span className="gold-text">Performance</span></h1>
-          <p className="text-gray-400 mt-1">Análise baseada em dados reais de treino e scout</p>
+          <p className="text-gray-400 mt-1 uppercase text-[10px] font-black tracking-widest">Análise profissional de formação de goleiros</p>
         </div>
-        
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl focus-within:border-gold transition-all shadow-inner">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl focus-within:border-gold transition-colors">
             <User size={16} className="gold-text" />
-            <select 
-              value={selectedKeeperId}
-              onChange={(e) => setSelectedKeeperId(e.target.value)}
-              className="bg-transparent text-xs font-black text-white uppercase outline-none cursor-pointer pr-4"
-            >
-              <option value="" disabled className="bg-black">Selecione o Goleiro</option>
-              {keepers.map(k => (
-                <option key={k.id} value={k.id} className="bg-black">{k.name} ({k.category})</option>
-              ))}
+            <select value={selectedKeeperId} onChange={(e) => setSelectedKeeperId(e.target.value)} className="bg-transparent text-xs font-black text-white uppercase outline-none cursor-pointer pr-4">
+              {keepers.map(k => (<option key={k.id} value={k.id} className="bg-black">{k.name} ({k.category})</option>))}
             </select>
           </div>
-          
-          <button className="flex items-center justify-center gap-2 bg-gray-900 text-gray-400 font-black px-6 py-2.5 rounded-xl border border-gray-800 hover:text-white hover:border-gray-600 transition-all shadow-lg text-[10px] uppercase tracking-widest">
-            <Download size={16} />
-            Exportar PDF
-          </button>
+          <button className="bg-gray-900 text-gray-400 font-black px-6 py-2.5 rounded-xl border border-gray-800 text-[10px] uppercase tracking-widest hover:text-white transition-all"><Download size={16} /> PDF</button>
         </div>
       </div>
 
       {selectedKeeper ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Main Analytics Area */}
           <div className="lg:col-span-8 space-y-8">
-            
-            {/* AI Insights Panel */}
-            <div className="bg-card border border-gray-800 rounded-3xl p-8 relative overflow-hidden group shadow-2xl">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-gold/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl group-hover:bg-gold/10 transition-colors"></div>
-              
-              <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-gold/20 border border-gold/30">
-                    <Brain className="gold-text" size={24} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-white tracking-tighter uppercase">GK AI Insights</h2>
-                    <p className="text-[10px] text-gray-500 uppercase tracking-widest font-black">Análise baseada no histórico longitudinal</p>
-                  </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-2xl relative overflow-hidden group">
+                    <div className="flex items-center gap-3 mb-6 relative z-10"><Brain className="gold-text group-hover:scale-110 transition-transform" size={20} /><h2 className="text-sm font-bold text-white uppercase">GK AI Insights</h2></div>
+                    <div className={`p-4 bg-black/40 border border-gray-800 rounded-2xl min-h-[100px] relative z-10 ${loadingAI ? 'opacity-50' : 'opacity-100'}`}><p className="text-gray-300 italic text-xs leading-relaxed">"{summary}"</p></div>
                 </div>
-                {loadingAI && (
-                  <div className="flex items-center gap-2 px-3 py-1 bg-gold/10 rounded-full border border-gold/20">
-                    <div className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse"></div>
-                    <span className="text-[9px] font-black text-gold uppercase">Processando</span>
-                  </div>
-                )}
-              </div>
-
-              <div className={`p-6 bg-black/40 border border-gray-800 rounded-2xl relative z-10 min-h-[120px] transition-opacity ${loadingAI ? 'opacity-50' : 'opacity-100'}`}>
-                <p className="text-gray-300 leading-relaxed italic text-sm">
-                  "{summary}"
-                </p>
-                {!loadingAI && summary !== 'Não foi possível gerar a análise.' && (
-                  <div className="mt-6 flex flex-wrap gap-4">
-                     <div className="flex items-center gap-2 px-3 py-1 bg-green-500/10 rounded-lg border border-green-500/20">
-                       <Shield size={12} className="text-green-500" />
-                       <span className="text-[10px] font-black text-green-500 uppercase tracking-widest">Status: Evolução Positiva</span>
-                     </div>
-                     <div className="flex items-center gap-2 px-3 py-1 bg-blue-500/10 rounded-lg border border-blue-500/20">
-                       <Zap size={12} className="text-blue-500" />
-                       <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Foco: Reação de Campo</span>
-                     </div>
-                  </div>
-                )}
-              </div>
+                <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-xl space-y-4">
+                    <div className="flex items-center gap-3 mb-2"><Clock className="text-blue-500" size={20} /><h2 className="text-sm font-bold text-white uppercase">Dados Consolidados</h2></div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3 bg-black/40 border border-gray-800 rounded-xl"><p className="text-[9px] font-black text-gray-500 uppercase">Minutos</p><p className="text-lg font-black text-blue-500">{scoutStats.minutesPlayed}</p></div>
+                      <div className="p-3 bg-black/40 border border-gray-800 rounded-xl"><p className="text-[9px] font-black text-gray-500 uppercase">Partidas</p><p className="text-lg font-black text-white">{scoutStats.games}</p></div>
+                      <div className="p-3 bg-black/40 border border-gray-800 rounded-xl"><p className="text-[9px] font-black text-gray-500 uppercase">Assistências</p><p className="text-lg font-black text-blue-400">{scoutStats.assists}</p></div>
+                      <div className="p-3 bg-black/40 border border-gray-800 rounded-xl"><p className="text-[9px] font-black text-gray-500 uppercase">Gols Atleta</p><p className="text-lg font-black text-gold">{scoutStats.goalsScored}</p></div>
+                    </div>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Radar Chart Section */}
-              <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-xl">
-                <div className="flex items-center gap-2 mb-6">
-                  <TrendingUp className="gold-text" size={18} />
-                  <h2 className="text-sm font-black text-white uppercase tracking-widest">Perfil Multidisciplinar</h2>
+                <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-xl">
+                    <div className="flex items-center gap-2 mb-4"><Crosshair className="text-red-500" size={18} /><h2 className="text-sm font-black text-white uppercase">Zona de Finalizações (Gols)</h2></div>
+                    <div className="relative bg-[#050c05] border-2 border-green-950/40 p-2 rounded-2xl shadow-inner aspect-[16/10] overflow-hidden">
+                      <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-40" viewBox="0 0 100 60">
+                        <rect x="0" y="0" width="100" height="60" fill="none" stroke="#22c55e" strokeWidth="0.4" />
+                        <rect x="25" y="0" width="50" height="15" fill="none" stroke="#22c55e" strokeWidth="0.4" />
+                        <rect x="38" y="0" width="24" height="6" fill="none" stroke="#22c55e" strokeWidth="0.4" />
+                        <rect x="42" y="-0.5" width="16" height="1" fill="#fff" fillOpacity="0.4" />
+                        <circle cx="50" cy="11" r="0.4" fill="#22c55e" />
+                        <path d="M 40 15 A 10 10 0 0 0 60 15" fill="none" stroke="#22c55e" strokeWidth="0.4" />
+                        <line x1="0" y1="58" x2="100" y2="58" stroke="#22c55e" strokeWidth="0.5" />
+                        <path d="M 40 58 A 10 10 0 0 1 60 58" fill="none" stroke="#22c55e" strokeWidth="0.5" />
+                      </svg>
+                      <div className="relative h-full grid grid-cols-5 grid-rows-[1fr_1fr_0.8fr] gap-1 z-10">
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((z) => {
+                          const count = pitchGoalOriginData[z] || 0;
+                          return (
+                            <div key={`pz-${z}`} className={`relative flex items-center justify-center border transition-all rounded-lg ${count > 0 ? 'bg-red-600/30 border-red-500/50 text-white' : 'bg-white/5 border-white/5 text-gray-800/10'}`}>
+                              <span className="text-[6px] absolute top-0.5 left-1 tracking-tighter uppercase text-gray-600">Z{z}</span>
+                              {count > 0 && <span className="text-xl font-black">{count}</span>}
+                            </div>
+                          );
+                        })}
+                        <div className={`col-span-5 relative flex items-center justify-center border transition-all rounded-lg ${pitchGoalOriginData[11] > 0 ? 'bg-red-600/30 border-red-500/50 text-white' : 'bg-white/5 border-white/5 text-gray-800/10'}`}>
+                          <span className="text-[6px] absolute top-0.5 left-1 tracking-tighter uppercase text-gray-600">Z11</span>
+                          {pitchGoalOriginData[11] > 0 && <span className="text-2xl font-black">{pitchGoalOriginData[11]}</span>}
+                        </div>
+                      </div>
+                    </div>
                 </div>
-                <div className="h-[320px] w-full flex items-center justify-center">
+                <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-xl">
+                    <div className="flex items-center gap-2 mb-4"><Goal className="gold-text" size={18} /><h2 className="text-sm font-black text-white uppercase">Mapa da Baliza (Gols Sofridos)</h2></div>
+                    <div className="bg-[#030308] border-2 border-blue-950/30 p-1.5 rounded-2xl shadow-inner aspect-[16/10] grid grid-cols-3 grid-rows-3 gap-1">
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((zone) => {
+                            const count = goalMouthConcedeData[zone] || 0;
+                            return (
+                                <div key={`gz-${zone}`} className={`relative flex items-center justify-center border-2 border-white/5 rounded-xl transition-all ${count > 0 ? 'bg-red-600/40 text-white font-black' : 'bg-black/20'}`}>
+                                    <span className="text-[6px] absolute top-0.5 left-1/2 -translate-x-1/2 text-gray-800">{zone}</span>
+                                    {count > 0 && <span className="text-white text-3xl font-black drop-shadow-lg">{count}</span>}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-xl">
+                <div className="flex items-center gap-2 mb-6"><TrendingUp className="gold-text" size={18} /><h2 className="text-sm font-black text-white uppercase">Radar de Proficiência</h2></div>
+                <div className="h-[280px] w-full flex items-center justify-center">
                   <ResponsiveContainer width="100%" height="100%">
                     <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
-                      <PolarGrid stroke="#333" />
-                      <PolarAngleAxis dataKey="subject" tick={{ fill: '#666', fontSize: 10, fontWeight: 800 }} />
-                      <PolarRadiusAxis angle={30} domain={[0, 5]} tick={false} axisLine={false} />
-                      <Radar
-                        name={selectedKeeper.name}
-                        dataKey="A"
-                        stroke="#D4AF37"
-                        fill="#D4AF37"
-                        fillOpacity={0.5}
-                        strokeWidth={2}
-                      />
-                      <Tooltip 
-                         contentStyle={{ backgroundColor: '#111', border: '1px solid #333', borderRadius: '12px', fontSize: '10px', color: '#fff' }}
-                         itemStyle={{ color: '#D4AF37' }}
-                      />
+                      <PolarGrid stroke="#333" /><PolarAngleAxis dataKey="subject" tick={{ fill: '#666', fontSize: 10, fontWeight: 800 }} />
+                      <Radar name={selectedKeeper.name} dataKey="A" stroke="#D4AF37" fill="#D4AF37" fillOpacity={0.5} strokeWidth={2} />
+                      <Tooltip contentStyle={{ backgroundColor: '#111', border: '1px solid #333', borderRadius: '12px', fontSize: '10px', color: '#fff' }} />
                     </RadarChart>
                   </ResponsiveContainer>
                 </div>
               </div>
-
-              {/* Media & Resources Section */}
-              <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-xl flex flex-col">
-                <div className="flex items-center gap-2 mb-6">
-                  <LinkIcon className="gold-text" size={18} />
-                  <h2 className="text-sm font-black text-white uppercase tracking-widest">Mídias e Recursos</h2>
-                </div>
-                
-                <div className="space-y-4 flex-1">
-                  {keeperEvaluations[0] ? (
-                    <>
-                      <div className="p-4 bg-black border border-gray-800 rounded-2xl group hover:border-gold/50 transition-all">
-                        <p className="text-[9px] text-gray-500 font-black uppercase mb-3">Últimos Melhores Momentos</p>
-                        {keeperEvaluations[0].highlightsLink ? (
-                          <a 
-                            href={keeperEvaluations[0].highlightsLink} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="flex items-center justify-between p-3 bg-gold/10 border border-gold/30 rounded-xl text-gold group-hover:bg-gold/20 transition-all"
-                          >
-                            <span className="text-xs font-black uppercase">Assistir Clipe</span>
-                            <Play size={16} />
-                          </a>
-                        ) : (
-                          <div className="p-3 bg-gray-900 border border-gray-800 rounded-xl text-gray-600 italic text-[10px]">Nenhum link cadastrado</div>
-                        )}
-                      </div>
-
-                      <div className="p-4 bg-black border border-gray-800 rounded-2xl group hover:border-blue-500/50 transition-all">
-                        <p className="text-[9px] text-gray-500 font-black uppercase mb-3">Plano de Melhoria</p>
-                        {keeperEvaluations[0].improvementsLink ? (
-                          <a 
-                            href={keeperEvaluations[0].improvementsLink} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="flex items-center justify-between p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-blue-500 group-hover:bg-blue-500/20 transition-all"
-                          >
-                            <span className="text-xs font-black uppercase">Ver Diretrizes</span>
-                            <Zap size={16} />
-                          </a>
-                        ) : (
-                          <div className="p-3 bg-gray-900 border border-gray-800 rounded-xl text-gray-600 italic text-[10px]">Nenhum recurso cadastrado</div>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-center text-gray-700 opacity-50">
-                       <LinkIcon size={32} className="mb-2" />
-                       <p className="text-[10px] font-black uppercase">Sem avaliações recentes</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            {/* Scout Aggregates Section */}
-            <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-xl flex flex-col">
-              <div className="flex items-center gap-2 mb-6">
-                <Target className="gold-text" size={18} />
-                <h2 className="text-sm font-black text-white uppercase tracking-widest">Resumo de Temporada</h2>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="p-6 bg-black border border-gray-800 rounded-2xl relative overflow-hidden group">
-                  <div className="absolute right-0 bottom-0 opacity-5 -rotate-12 translate-x-2 translate-y-2">
-                     <Shield size={80} className="text-gold" />
-                  </div>
-                  <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-4">Volume Defensivo</p>
-                  <div className="flex items-end justify-between">
-                     <div>
-                       <p className="text-4xl font-black text-white">{scoutStats.totalSaves}</p>
-                       <p className="text-[9px] gold-text font-black uppercase">Defesas Totais</p>
-                     </div>
-                  </div>
-                </div>
-
-                <div className="p-6 bg-black border border-gray-800 rounded-2xl relative overflow-hidden group">
-                  <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-4">Segurança</p>
-                  <div className="flex items-end justify-between">
-                     <div>
-                       <p className="text-4xl font-black text-blue-500">{scoutStats.cleanSheets}</p>
-                       <p className="text-[9px] text-blue-400 font-black uppercase">Jogos sem Vazamento</p>
-                     </div>
-                  </div>
-                </div>
-
-                <div className="p-6 bg-black border border-gray-800 rounded-2xl relative overflow-hidden group">
-                  <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-4">Constância Técnica</p>
-                  <div className="flex items-end justify-between">
-                     <div>
-                       <p className="text-4xl font-black text-white">{scoutStats.avgSaves}</p>
-                       <p className="text-[9px] text-gray-500 font-black uppercase">Média Defesa/Jogo</p>
-                     </div>
-                  </div>
+              <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-xl space-y-4">
+                <div className="flex items-center gap-2 mb-6"><Activity className="gold-text" size={18} /><h2 className="text-sm font-black text-white uppercase">KPIs Consolidados</h2></div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-black border border-gray-800 rounded-2xl"><p className="text-[9px] text-gray-500 font-black uppercase mb-1">Média Defesas</p><p className="text-2xl font-black text-white">{scoutStats.avgSaves}</p></div>
+                    <div className="p-4 bg-black border border-gray-800 rounded-2xl"><p className="text-[9px] text-gray-500 font-black uppercase mb-1">Clean Sheets</p><p className="text-2xl font-black text-blue-500">{scoutStats.cleanSheets}</p></div>
+                    <div className="p-4 bg-black border border-gray-800 rounded-2xl"><p className="text-[9px] text-gray-500 font-black uppercase mb-1">Gols Sofridos</p><p className="text-2xl font-black text-red-500">{scoutStats.goalsConceded}</p></div>
+                    <div className="p-4 bg-black border border-gray-800 rounded-2xl"><p className="text-[9px] text-gray-500 font-black uppercase mb-1">Partidas</p><p className="text-2xl font-black text-gray-300">{scoutStats.games}</p></div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Sidebar - Ranking & Highlights */}
           <div className="lg:col-span-4 space-y-8">
-             {/* Ranking Card */}
              <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-2xl">
-               <div className="flex items-center justify-between mb-6">
-                 <h2 className="text-sm font-black text-white uppercase tracking-tighter flex items-center gap-2">
-                   <Award className="gold-text" size={18} /> Ranking Geral
-                 </h2>
-                 <span className="text-[9px] text-gray-500 font-bold uppercase">Base: Média Evals</span>
-               </div>
-               
-               <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+               <h2 className="text-sm font-black text-white uppercase flex items-center gap-2 mb-6"><Award className="gold-text" size={18} /> Ranking Geral</h2>
+               <div className="space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
                   {ranking.map((k, i) => (
-                    <div 
-                      key={k.id} 
-                      onClick={() => setSelectedKeeperId(k.id)}
-                      className={`
-                        flex items-center gap-4 p-3 rounded-2xl border transition-all cursor-pointer
-                        ${selectedKeeperId === k.id 
-                          ? 'bg-gold/10 border-gold/50 shadow-lg shadow-gold/5' 
-                          : 'bg-black border-gray-800 hover:border-gray-700'}
-                      `}
-                    >
-                      <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-[10px] font-black text-gray-600 shrink-0 border border-gray-800">
-                        {i + 1}
-                      </div>
-                      <div className="w-10 h-10 rounded-xl bg-gray-900 border border-gray-800 overflow-hidden shrink-0">
-                         {k.photo ? (
-                           <img src={k.photo} alt={k.name} className="w-full h-full object-cover" />
-                         ) : (
-                           <div className="w-full h-full flex items-center justify-center text-gold font-bold">{k.name.charAt(0)}</div>
-                         )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-bold truncate ${selectedKeeperId === k.id ? 'text-white' : 'text-gray-400'}`}>{k.name}</p>
-                        <p className="text-[9px] text-gray-600 font-black uppercase tracking-tighter">{k.category}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className={`text-sm font-black ${k.score >= 4 ? 'text-green-500' : k.score >= 3 ? 'gold-text' : 'text-gray-500'}`}>{k.score}</p>
-                        <p className="text-[8px] text-gray-700 font-bold uppercase">Nota</p>
-                      </div>
+                    <div key={k.id} onClick={() => setSelectedKeeperId(k.id)} className={`flex items-center gap-4 p-3 rounded-2xl border transition-all cursor-pointer ${selectedKeeperId === k.id ? 'bg-gold/10 border-gold shadow-lg shadow-gold/5' : 'bg-black border-gray-800 hover:border-gray-700'}`}>
+                      <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-[10px] font-black text-gray-600 shrink-0 border border-gray-800">{i + 1}</div>
+                      <div className="w-10 h-10 rounded-xl bg-gray-900 border border-gray-800 overflow-hidden shrink-0">{k.photo ? <img src={k.photo} alt={k.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gold font-bold">{k.name.charAt(0)}</div>}</div>
+                      <div className="flex-1 min-w-0"><p className={`text-xs font-bold truncate ${selectedKeeperId === k.id ? 'text-white' : 'text-gray-400'}`}>{k.name}</p><p className="text-[9px] text-gray-600 font-black uppercase tracking-tighter">{k.category}</p></div>
+                      <div className="text-right"><p className={`text-sm font-black ${k.score >= 4 ? 'text-green-500' : k.score >= 3 ? 'gold-text' : 'text-gray-500'}`}>{k.score}</p></div>
                     </div>
                   ))}
                </div>
              </div>
-
-             {/* Dynamic Performance Badge */}
-             <div className="bg-gradient-to-br from-gold to-yellow-600 rounded-3xl p-8 text-black shadow-2xl relative overflow-hidden group">
-                <div className="absolute -right-4 -top-4 opacity-20 group-hover:scale-110 transition-transform">
-                   <Award size={120} />
-                </div>
-                
-                <div className="relative z-10">
-                  <div className="flex items-center gap-2 mb-4">
-                     <Activity size={24} className="animate-pulse" />
-                     <h2 className="text-xl font-black uppercase tracking-tighter italic">Elite Tracker</h2>
-                  </div>
-                  <p className="text-sm font-bold opacity-80 mb-6 leading-tight">
-                    {selectedKeeper.name} atingiu {(radarData.reduce((a, b) => a + b.A, 0) / 5).toFixed(1)} de média técnica no último microciclo.
-                  </p>
-                  
-                  <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div className="bg-black/10 p-4 rounded-2xl backdrop-blur-sm border border-black/5">
-                      <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">Evolução</p>
-                      <p className="text-xl font-black">+14%</p>
-                    </div>
-                    <div className="bg-black/10 p-4 rounded-2xl backdrop-blur-sm border border-black/5">
-                      <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">Frequência</p>
-                      <p className="text-xl font-black">100%</p>
-                    </div>
-                  </div>
-                  
-                  <button className="w-full py-4 bg-black text-white font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-gray-900 transition-all flex items-center justify-center gap-2 shadow-xl active:scale-95">
-                    <FileText size={16} /> Ver Analytics Detalhado
-                  </button>
-                </div>
-             </div>
           </div>
         </div>
-      ) : (
-        <div className="h-[60vh] flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-gray-800 rounded-[40px]">
-           <User size={64} className="text-gray-800 mb-6" />
-           <h2 className="text-xl font-black text-gray-600 uppercase tracking-widest">Nenhum Goleiro Selecionado</h2>
-           <p className="text-gray-500 text-sm mt-2 max-w-sm">Selecione um atleta no menu superior para visualizar os relatórios técnicos e de scout integrados.</p>
-        </div>
-      )}
+      ) : null}
     </div>
   );
 };

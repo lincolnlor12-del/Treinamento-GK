@@ -75,6 +75,14 @@ export interface MatchScout {
   result: string;
   cleanSheet: boolean;
   goalParticipation: boolean;
+  assists?: number;
+  goalsScored?: number;
+  penalties?: {
+    pos: number;
+    neg: number;
+  };
+  minutesPlayed: number;
+  matchPosition: 'Titular' | 'Reserva';
   actions: Record<string, { pos: number, neg: number }>;
   specialActions: {
     defesaBasica: number;
@@ -84,4 +92,17 @@ export interface MatchScout {
   };
   pitchZones: Record<number, number>; 
   goalZones: Record<number, { saves: number, goals: number }>;
+}
+
+export type SupportArea = 'Medicina' | 'Fisioterapia' | 'Nutrição' | 'Psicologia' | 'Pedagogia';
+
+export interface SupportRecord {
+  id: string;
+  goalkeeperId: string;
+  date: string;
+  area: SupportArea;
+  professionalName: string;
+  status: 'Apto' | 'Restrição' | 'Afastado' | 'Observação';
+  title: string;
+  description: string;
 }

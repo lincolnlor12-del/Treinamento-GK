@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Target, Shield, Zap, Save, Trophy, User, Check, Minus, Plus, Map, Goal, X as CloseIcon, FileText, Download, History, ChevronDown, ChevronUp, Trash2, ShieldX, ShieldAlert } from 'lucide-react';
+import { Target, Shield, Zap, Save, Trophy, User, Check, Minus, Plus, Map, Goal, X as CloseIcon, FileText, Download, History, ChevronDown, ChevronUp, Trash2, ShieldX, ShieldAlert, Crosshair, Clock, UserPlus, AlertCircle, Star } from 'lucide-react';
 import { useGoalkeepers } from '../context/GoalkeeperContext';
 import { MatchScout } from '../types';
 
@@ -30,16 +30,14 @@ const SCOUT_METRICS = [
 const ScoutPage: React.FC = () => {
   const { keepers, scouts, addScout, deleteScout } = useGoalkeepers();
   const [showHistory, setShowHistory] = useState(false);
-  const [expandedScoutId, setExpandedScoutId] = useState<string | null>(null);
-
-  const [activeKeeperId, setActiveKeeperId] = useState('');
-  const [opponent, setOpponent] = useState('');
-  const [competition, setCompetition] = useState('');
-  const [result, setResult] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   
+  const [titularId, setTitularId] = useState('');
+  const [reservaId, setReservaId] = useState('');
+  const [scoutingRole, setScoutingRole] = useState<'Titular' | 'Reserva'>('Titular');
+  const [opponent, setOpponent] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [minutesPlayed, setMinutesPlayed] = useState<number>(90);
   const [cleanSheet, setCleanSheet] = useState(false);
-  const [goalParticipation, setGoalParticipation] = useState(false);
   
   const [actions, setActions] = useState<Record<string, { pos: number, neg: number }>>(
     SCOUT_METRICS.reduce((acc, m) => ({ ...acc, [m.id]: { pos: 0, neg: 0 } }), {})
@@ -52,246 +50,218 @@ const ScoutPage: React.FC = () => {
     erroCritico: 0
   });
 
+  const [penalties, setPenalties] = useState({ pos: 0, neg: 0 });
+  const [offensiveStats, setOffensiveStats] = useState({ assists: 0, goals: 0 });
+
   const [pitchZones, setPitchZones] = useState<Record<number, number>>({});
   const [goalZones, setGoalZones] = useState<Record<number, { saves: number, goals: number }>>({});
 
-  const keeperScouts = useMemo(() => {
-    return scouts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [scouts]);
+  const activeKeeperId = useMemo(() => scoutingRole === 'Titular' ? titularId : reservaId, [scoutingRole, titularId, reservaId]);
+  const keeperScouts = useMemo(() => scouts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [scouts]);
 
   const handleActionChange = (id: string, type: 'pos' | 'neg', delta: number) => {
-    setActions(prev => ({
-      ...prev,
-      [id]: {
-        ...prev[id],
-        [type]: Math.max(0, prev[id][type] + delta)
-      }
-    }));
+    setActions(prev => ({ ...prev, [id]: { ...prev[id], [type]: Math.max(0, prev[id][type] + delta) } }));
   };
 
   const handleSpecialAction = (id: keyof typeof specialActions, delta: number) => {
     setSpecialActions(prev => ({ ...prev, [id]: Math.max(0, prev[id] + delta) }));
   };
 
+  const handlePenaltyChange = (type: 'pos' | 'neg', delta: number) => {
+    setPenalties(prev => ({ ...prev, [type]: Math.max(0, prev[type] + delta) }));
+  };
+
+  const handleOffensiveChange = (type: 'assists' | 'goals', delta: number) => {
+    setOffensiveStats(prev => ({ ...prev, [type]: Math.max(0, prev[type] + delta) }));
+  };
+
   const handlePitchZoneClick = (zoneId: number, delta: number = 1) => {
-    setPitchZones(prev => ({
-      ...prev,
-      [zoneId]: Math.max(0, (prev[zoneId] || 0) + delta)
-    }));
+    setPitchZones(prev => ({ ...prev, [zoneId]: Math.max(0, (prev[zoneId] || 0) + delta) }));
+  };
+
+  const handleClearPitchZone = (zoneId: number) => {
+    setPitchZones(prev => {
+      const next = { ...prev };
+      delete next[zoneId];
+      return next;
+    });
   };
 
   const handleGoalZoneAction = (zoneId: number, type: 'saves' | 'goals', delta: number = 1) => {
     setGoalZones(prev => {
       const current = prev[zoneId] || { saves: 0, goals: 0 };
-      return {
-        ...prev,
-        [zoneId]: {
-          ...current,
-          [type]: Math.max(0, current[type] + delta)
-        }
-      };
+      return { ...prev, [zoneId]: { ...current, [type]: Math.max(0, current[type] + delta) } };
     });
   };
 
-  const handleClearGoalZone = (e: React.MouseEvent, zoneId: number) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleClearGoalZone = (zoneId: number) => {
     setGoalZones(prev => {
-      const newState = { ...prev };
-      delete newState[zoneId];
-      return newState;
-    });
-  };
-
-  const handleClearPitchZone = (e: React.MouseEvent, zoneId: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setPitchZones(prev => {
-      const newState = { ...prev };
-      delete newState[zoneId];
-      return newState;
+      const next = { ...prev };
+      delete next[zoneId];
+      return next;
     });
   };
 
   const handleSaveScout = () => {
-    if (!activeKeeperId || !opponent) {
-      alert("Selecione um goleiro e informe o adversário.");
-      return;
-    }
+    if (!activeKeeperId) { alert("ERRO: Selecione o goleiro antes de salvar."); return; }
+    if (!opponent.trim()) { alert("ERRO: Informe o nome do Adversário."); return; }
 
     const newScout: MatchScout = {
       id: Math.random().toString(36).substr(2, 9),
       goalkeeperId: activeKeeperId,
-      opponent,
-      date,
-      competition,
-      result,
-      cleanSheet,
-      goalParticipation,
-      actions,
-      specialActions,
-      pitchZones,
-      goalZones
+      opponent, date, competition: '', result: '',
+      minutesPlayed: Number(minutesPlayed) || 0,
+      matchPosition: scoutingRole,
+      cleanSheet, 
+      goalParticipation: offensiveStats.assists > 0 || offensiveStats.goals > 0,
+      assists: offensiveStats.assists,
+      goalsScored: offensiveStats.goals,
+      penalties: { ...penalties },
+      actions: JSON.parse(JSON.stringify(actions)),
+      specialActions: { ...specialActions },
+      pitchZones: { ...pitchZones },
+      goalZones: JSON.parse(JSON.stringify(goalZones))
     };
 
     addScout(newScout);
-    alert("Scout registrado com sucesso!");
+    alert(`Scout de ${scoutingRole} salvo com sucesso!`);
     resetForm();
   };
 
   const resetForm = () => {
-    setOpponent('');
-    setResult('');
-    setCleanSheet(false);
-    setGoalParticipation(false);
     setActions(SCOUT_METRICS.reduce((acc, m) => ({ ...acc, [m.id]: { pos: 0, neg: 0 } }), {}));
     setSpecialActions({ defesaBasica: 0, defesaDificil: 0, superSave: 0, erroCritico: 0 });
-    setPitchZones({});
-    setGoalZones({});
-  };
-
-  const exportToPDF = (scout: MatchScout) => {
-    const keeper = keepers.find(k => k.id === scout.goalkeeperId);
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    const html = `
-      <html>
-        <head>
-          <title>Scout - ${keeper?.name} vs ${scout.opponent}</title>
-          <style>
-            body { font-family: sans-serif; padding: 40px; color: #333; }
-            .header { border-bottom: 2px solid #D4AF37; padding-bottom: 10px; margin-bottom: 20px; }
-            .gold { color: #D4AF37; }
-            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-            .card { border: 1px solid #eee; padding: 15px; border-radius: 8px; margin-bottom: 10px; }
-            h1, h2, h3 { margin-top: 0; text-transform: uppercase; }
-            .stat-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #f9f9f9; font-size: 12px; }
-            .val { font-weight: bold; }
-            .pos { color: green; }
-            .neg { color: red; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1 class="gold">GK Performance Pro - Scout de Jogo</h1>
-            <p><strong>Goleiro:</strong> ${keeper?.name} (${keeper?.category}) | <strong>Data:</strong> ${new Date(scout.date + 'T00:00:00').toLocaleDateString()}</p>
-            <p><strong>Partida:</strong> vs ${scout.opponent} | <strong>Resultado:</strong> ${scout.result}</p>
-          </div>
-          
-          <div class="grid">
-            <div class="card">
-              <h3>Ações Técnicas</h3>
-              ${SCOUT_METRICS.map(m => {
-                const act = scout.actions[m.id];
-                return `<div class="stat-row"><span>${m.label}</span><span><span class="pos">+${act.pos}</span> / <span class="neg">-${act.neg}</span></span></div>`;
-              }).join('')}
-            </div>
-            <div>
-              <div class="card">
-                <h3>Destaques</h3>
-                <div class="stat-row"><span>Defesa Básica</span><span class="val">${scout.specialActions.defesaBasica}</span></div>
-                <div class="stat-row"><span>Defesa Difícil</span><span class="val">${scout.specialActions.defesaDificil}</span></div>
-                <div class="stat-row"><span>Super Save</span><span class="val">${scout.specialActions.superSave}</span></div>
-                <div class="stat-row"><span>Erro Crítico</span><span class="val">${scout.specialActions.erroCritico || 0}</span></div>
-                <div class="stat-row"><span>Clean Sheet</span><span class="val">${scout.cleanSheet ? 'SIM' : 'NÃO'}</span></div>
-                <div class="stat-row"><span>Part. em Gol</span><span class="val">${scout.goalParticipation ? 'SIM' : 'NÃO'}</span></div>
-              </div>
-              <div class="card">
-                <h3>Zonais</h3>
-                <p><strong>Zonas de Atuação (Pitch):</strong> ${Object.entries(scout.pitchZones).map(([z, c]) => `Z${z}(${c}x)`).join(', ') || 'Nenhuma'}</p>
-                <p><strong>Zonas do Gol:</strong> ${Object.entries(scout.goalZones).map(([z, val]) => `Z${z}(D:${val.saves}/G:${val.goals})`).join(', ') || 'Nenhuma'}</p>
-              </div>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.print();
+    setPenalties({ pos: 0, neg: 0 });
+    setOffensiveStats({ assists: 0, goals: 0 });
+    setPitchZones({}); setGoalZones({}); setCleanSheet(false);
   };
 
   return (
     <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500 max-w-[1400px] mx-auto pb-20">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white uppercase tracking-tighter">Scout Profissional <span className="gold-text">2026</span></h1>
-          <p className="text-gray-400 mt-1">Modelo baseado no caderno de formação técnica</p>
+          <h1 className="text-3xl font-bold text-white uppercase tracking-tighter">GK PERFORMANCE PRO – <span className="gold-text">SCOUT</span></h1>
+          <p className="text-gray-400 mt-1 uppercase text-[10px] font-black tracking-widest">Análise profissional de formação de goleiros</p>
         </div>
         <div className="flex gap-3">
-          <button 
-            onClick={() => setShowHistory(!showHistory)}
-            className="flex items-center justify-center gap-2 bg-gray-900 border border-gray-800 text-gray-400 font-black px-6 py-3 rounded-xl hover:text-white hover:border-gray-700 transition-all uppercase text-xs"
-          >
-            <History size={18} />
-            {showHistory ? 'Voltar para Lançamento' : 'Histórico de Scouts'}
+          <button onClick={() => setShowHistory(!showHistory)} className="flex items-center justify-center gap-2 bg-gray-900 border border-gray-800 text-gray-400 font-black px-6 py-3 rounded-xl hover:text-white transition-all uppercase text-xs">
+            <History size={18} /> {showHistory ? 'Voltar para Lançamento' : 'Histórico de Scouts'}
           </button>
           {!showHistory && (
-            <button 
-              onClick={handleSaveScout}
-              className="flex items-center justify-center gap-2 gold-gradient text-black font-black px-10 py-4 rounded-xl shadow-lg hover:brightness-110 active:scale-95 transition-all uppercase text-xs tracking-widest"
-            >
-              <Save size={20} />
-              Finalizar Relatório
+            <button onClick={handleSaveScout} className="flex items-center justify-center gap-2 gold-gradient text-black font-black px-10 py-4 rounded-xl shadow-lg hover:brightness-110 transition-all uppercase text-xs tracking-widest">
+              <Save size={20} /> Salvar Relatório {scoutingRole}
             </button>
           )}
         </div>
       </div>
 
       {!showHistory ? (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-3 space-y-6">
-            <div className="bg-card border border-gray-800 rounded-2xl p-6 shadow-xl sticky top-20">
-              <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-6 flex items-center gap-2">
-                <Trophy size={14} className="gold-text" /> Dados da Partida
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-[10px] font-black text-gray-500 uppercase mb-2">Atleta</label>
-                  <select 
-                    value={activeKeeperId}
-                    onChange={(e) => setActiveKeeperId(e.target.value)}
-                    className="w-full p-3 bg-black border border-gray-800 rounded-xl text-white text-xs font-bold outline-none focus:border-gold"
-                  >
-                    <option value="">Selecione...</option>
-                    {keepers.map(k => <option key={k.id} value={k.id}>{k.name} ({k.category})</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black text-gray-500 uppercase mb-2">Adversário</label>
-                  <input type="text" value={opponent} onChange={(e) => setOpponent(e.target.value)} className="w-full p-3 bg-black border border-gray-800 rounded-xl text-white text-xs font-bold outline-none focus:border-gold" placeholder="Ex: Grêmio" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <button 
-                    onClick={() => setCleanSheet(!cleanSheet)}
-                    className={`p-3 rounded-xl border font-black text-[10px] uppercase transition-all ${cleanSheet ? 'bg-gold border-gold text-black shadow-lg shadow-gold/20' : 'bg-black border-gray-800 text-gray-500'}`}
-                  >
-                    Clean Sheet
-                  </button>
-                  <button 
-                    onClick={() => setGoalParticipation(!goalParticipation)}
-                    className={`p-3 rounded-xl border font-black text-[10px] uppercase transition-all ${goalParticipation ? 'bg-gold border-gold text-black shadow-lg shadow-gold/20' : 'bg-black border-gray-800 text-gray-500'}`}
-                  >
-                    Part. em Gol
-                  </button>
-                </div>
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Sidebar: Dados e Participação */}
+            <div className="lg:col-span-4 space-y-6">
+              <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-xl sticky top-20">
+                <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-6 flex items-center gap-2"><Trophy size={14} className="gold-text" /> Escalação e Partida</h3>
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label className={`block text-[10px] font-black uppercase mb-2 ${scoutingRole === 'Titular' ? 'gold-text' : 'text-gray-500'}`}>Titular</label>
+                      <select value={titularId} onChange={(e) => setTitularId(e.target.value)} className="w-full p-3 bg-black border border-gray-800 rounded-xl text-white text-xs font-bold outline-none focus:border-gold">
+                        <option value="">Selecione...</option>
+                        {keepers.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
 
-                <div className="pt-4 space-y-3 border-t border-gray-800">
-                  {[
-                    { label: 'Defesa Básica (+)', id: 'defesaBasica', icon: <Shield size={12} className="text-blue-400" /> },
-                    { label: 'Defesa Difícil (+)', id: 'defesaDificil', icon: <Zap size={12} className="text-yellow-400" /> },
-                    { label: 'Super Save (+)', id: 'superSave', icon: <Trophy size={12} className="gold-text" /> },
-                    { label: 'Erro Crítico (-)', id: 'erroCritico', icon: <ShieldAlert size={12} className="text-red-500" /> },
-                  ].map(item => (
-                    <div key={item.id} className="flex items-center justify-between">
-                      <span className="text-[9px] font-black text-gray-400 uppercase flex items-center gap-1">
-                        {item.icon} {item.label}
-                      </span>
+                  <div className="bg-black/60 p-1.5 rounded-2xl border border-gray-800 flex items-center gap-1.5 shadow-inner">
+                     <button onClick={() => setScoutingRole('Titular')} className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase transition-all flex items-center justify-center gap-2 ${scoutingRole === 'Titular' ? 'bg-gold text-black shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}>
+                       <Shield size={14} /> Titular
+                     </button>
+                     <button onClick={() => setScoutingRole('Reserva')} className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase transition-all flex items-center justify-center gap-2 ${scoutingRole === 'Reserva' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}>
+                       <ShieldX size={14} /> Reserva
+                     </button>
+                  </div>
+
+                  <div className="pt-4 border-t border-gray-800 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-2">
+                        <label className="block text-[10px] font-black text-gray-500 uppercase mb-2">Adversário</label>
+                        <input type="text" value={opponent} onChange={(e) => setOpponent(e.target.value)} className="w-full p-3 bg-black border border-gray-800 rounded-xl text-white text-xs font-bold outline-none focus:border-gold" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pênaltis */}
+                  <div className="pt-4 space-y-3 border-t border-gray-800">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Pênaltis</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-black text-gray-400 uppercase flex items-center gap-1"><Check size={12} className="text-green-500" /> Positivo (Defesa)</span>
                       <div className="flex items-center gap-2">
-                         <button onClick={() => handleSpecialAction(item.id as any, -1)} className="w-7 h-7 bg-gray-900 rounded border border-gray-800 text-gray-400 font-bold">-</button>
-                         <span className={`w-4 text-center text-xs font-black ${item.id === 'erroCritico' ? 'text-red-500' : 'text-gold'}`}>{specialActions[item.id as keyof typeof specialActions]}</span>
-                         <button onClick={() => handleSpecialAction(item.id as any, 1)} className={`w-7 h-7 rounded border font-bold ${item.id === 'erroCritico' ? 'bg-red-600 border-red-600 text-white' : 'bg-gold border-gold text-black'}`}>+</button>
+                        <button onClick={() => handlePenaltyChange('pos', -1)} className="w-7 h-7 bg-gray-900 rounded border border-gray-800 text-gray-400 font-bold">-</button>
+                        <span className="w-4 text-center text-xs font-black text-green-500">{penalties.pos}</span>
+                        <button onClick={() => handlePenaltyChange('pos', 1)} className="w-7 h-7 rounded border font-bold bg-green-600 border-green-600 text-white">+</button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-black text-gray-400 uppercase flex items-center gap-1"><ShieldAlert size={12} className="text-red-500" /> Negativo (Gol)</span>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => handlePenaltyChange('neg', -1)} className="w-7 h-7 bg-gray-900 rounded border border-gray-800 text-gray-400 font-bold">-</button>
+                        <span className="w-4 text-center text-xs font-black text-red-500">{penalties.neg}</span>
+                        <button onClick={() => handlePenaltyChange('neg', 1)} className="w-7 h-7 rounded border font-bold bg-red-600 border-red-600 text-white">+</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Participação Ofensiva */}
+                  <div className="pt-4 space-y-3 border-t border-gray-800">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Participação Ofensiva</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-black text-gray-400 uppercase flex items-center gap-1"><Zap size={12} className="text-blue-400" /> Assistência</span>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => handleOffensiveChange('assists', -1)} className="w-7 h-7 bg-gray-900 rounded border border-gray-800 text-gray-400 font-bold">-</button>
+                        <span className="w-4 text-center text-xs font-black text-blue-400">{offensiveStats.assists}</span>
+                        <button onClick={() => handleOffensiveChange('assists', 1)} className="w-7 h-7 rounded border font-bold bg-blue-600 border-blue-600 text-white">+</button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-black text-gray-400 uppercase flex items-center gap-1"><Star size={12} className="gold-text" /> Gol Marcado</span>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => handleOffensiveChange('goals', -1)} className="w-7 h-7 bg-gray-900 rounded border border-gray-800 text-gray-400 font-bold">-</button>
+                        <span className="w-4 text-center text-xs font-black text-gold">{offensiveStats.goals}</span>
+                        <button onClick={() => handleOffensiveChange('goals', 1)} className="w-7 h-7 rounded border font-bold bg-gold border-gold text-black">+</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Painel de Métricas Técnicas */}
+            <div className="lg:col-span-8">
+              <div className="bg-card border border-gray-800 rounded-3xl overflow-hidden shadow-2xl h-full flex flex-col">
+                <div className="p-4 bg-gray-900/50 border-b border-gray-800 flex items-center justify-between shrink-0">
+                  <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Painel de Ações Técnicas</span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setCleanSheet(!cleanSheet)} className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter transition-all ${cleanSheet ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-500'}`}>
+                      Clean Sheet: {cleanSheet ? 'SIM' : 'NÃO'}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-px bg-gray-800 custom-scrollbar">
+                  {SCOUT_METRICS.map(metric => (
+                    <div key={metric.id} className="bg-card p-4 flex items-center justify-between group hover:bg-white/[0.01] transition-colors">
+                      <span className="text-[11px] font-black text-gray-300 uppercase tracking-tight">{metric.label}</span>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 bg-black/40 p-1.5 rounded-xl border border-gray-800">
+                          <button onClick={() => handleActionChange(metric.id, 'neg', -1)} className="w-7 h-7 rounded-lg bg-red-950/20 text-red-500 border border-red-900/30 flex items-center justify-center"><Minus size={14} /></button>
+                          <span className="w-5 text-center text-xs font-black text-red-500">{actions[metric.id].neg}</span>
+                          <button onClick={() => handleActionChange(metric.id, 'neg', 1)} className="w-7 h-7 rounded-lg bg-red-600 text-white flex items-center justify-center"><Plus size={14} /></button>
+                        </div>
+                        <div className="flex items-center gap-2 bg-black/40 p-1.5 rounded-xl border border-gray-800">
+                          <button onClick={() => handleActionChange(metric.id, 'pos', -1)} className="w-7 h-7 rounded-lg bg-green-950/20 text-green-500 border border-green-900/30 flex items-center justify-center"><Minus size={14} /></button>
+                          <span className="w-5 text-center text-xs font-black text-green-500">{actions[metric.id].pos}</span>
+                          <button onClick={() => handleActionChange(metric.id, 'pos', 1)} className="w-7 h-7 rounded-lg gold-gradient text-black flex items-center justify-center"><Plus size={14} /></button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -300,237 +270,137 @@ const ScoutPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="lg:col-span-9 space-y-6">
-            <div className="bg-card border border-gray-800 rounded-3xl overflow-hidden shadow-2xl">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-gray-800">
-                {SCOUT_METRICS.map(metric => (
-                  <div key={metric.id} className="bg-card p-4 flex items-center justify-between group hover:bg-white/[0.01] transition-colors">
-                    <span className="text-[11px] font-black text-gray-300 uppercase tracking-tight">{metric.label}</span>
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-2 bg-black/40 p-1.5 rounded-xl border border-gray-800">
-                        <button 
-                          onClick={() => handleActionChange(metric.id, 'neg', -1)}
-                          className="w-7 h-7 rounded-lg bg-red-950/20 text-red-500 border border-red-900/30 flex items-center justify-center hover:bg-red-900/30"
-                        ><Minus size={14} /></button>
-                        <span className="w-5 text-center text-xs font-black text-red-500">{actions[metric.id].neg}</span>
-                        <button 
-                          onClick={() => handleActionChange(metric.id, 'neg', 1)}
-                          className="w-7 h-7 rounded-lg bg-red-600 text-white flex items-center justify-center hover:scale-105 transition-all"
-                        ><Plus size={14} /></button>
-                        <span className="text-[8px] font-black text-red-500/50 uppercase ml-1">ERRO</span>
-                      </div>
-                      <div className="flex items-center gap-2 bg-black/40 p-1.5 rounded-xl border border-gray-800">
-                        <button 
-                          onClick={() => handleActionChange(metric.id, 'pos', -1)}
-                          className="w-7 h-7 rounded-lg bg-green-950/20 text-green-500 border border-green-900/30 flex items-center justify-center hover:bg-green-900/30"
-                        ><Minus size={14} /></button>
-                        <span className="w-5 text-center text-xs font-black text-green-500">{actions[metric.id].pos}</span>
-                        <button 
-                          onClick={() => handleActionChange(metric.id, 'pos', 1)}
-                          className="w-7 h-7 rounded-lg gold-gradient text-black flex items-center justify-center hover:scale-105 transition-all"
-                        ><Plus size={14} /></button>
-                        <span className="text-[8px] font-black text-green-500/50 uppercase ml-1">OK</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {/* RODAPÉ: ZONAS LADO A LADO */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* ZONA DE FINALIZAÇÃO (PITCH) */}
+            <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-2xl relative overflow-hidden group">
+              <h3 className="text-xs font-black gold-text uppercase tracking-widest mb-1 flex items-center gap-2">
+                <Crosshair size={14} className="text-red-500" /> ZONA DE FINALIZAÇÕES (GOLS)
+              </h3>
+              <p className="text-[8px] font-black text-gray-600 uppercase mb-4 tracking-tighter uppercase">
+                CLIQUE PARA CONTAR • BOTÃO DIREITO -1 • "X" LIMPAR
+              </p>
+              
+              <div className="relative bg-[#050c05] border-2 border-green-950/40 p-2 rounded-2xl shadow-inner aspect-[16/10] overflow-hidden">
+                {/* Soccer Pitch Markings SVG */}
+                <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-40" viewBox="0 0 100 60">
+                  <rect x="0" y="0" width="100" height="60" fill="none" stroke="#22c55e" strokeWidth="0.4" />
+                  <rect x="25" y="0" width="50" height="15" fill="none" stroke="#22c55e" strokeWidth="0.4" />
+                  <rect x="38" y="0" width="24" height="6" fill="none" stroke="#22c55e" strokeWidth="0.4" />
+                  <rect x="42" y="-0.5" width="16" height="1" fill="#fff" fillOpacity="0.4" />
+                  <circle cx="50" cy="11" r="0.4" fill="#22c55e" />
+                  <path d="M 40 15 A 10 10 0 0 0 60 15" fill="none" stroke="#22c55e" strokeWidth="0.4" />
+                  <line x1="0" y1="58" x2="100" y2="58" stroke="#22c55e" strokeWidth="0.5" />
+                  <path d="M 40 58 A 10 10 0 0 1 60 58" fill="none" stroke="#22c55e" strokeWidth="0.5" />
+                </svg>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-xl">
-                <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <Map size={14} className="gold-text" /> Zonas do Campo (Atuação)
-                </h3>
-                <p className="text-[8px] text-gray-600 uppercase font-bold mb-3">Clique para contar • Botão direito -1 • "X" Limpar</p>
-                <div className="relative aspect-[16/9] bg-green-900/10 border-2 border-green-800/30 rounded-xl overflow-hidden grid grid-cols-5 grid-rows-3 gap-1 p-1">
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((zone, idx) => {
+                {/* Grid Overlay */}
+                <div className="relative h-full grid grid-cols-5 grid-rows-[1fr_1fr_0.8fr] gap-1.5 z-10">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((zone) => {
                     const count = pitchZones[zone] || 0;
-                    const isSelected = count > 0;
-                    const spans = zone === 11 ? 'col-span-5 row-start-3' : '';
-                    if (zone === 11 && idx < 10) return null;
-                    if (zone > 10 && zone !== 11) return null;
-
                     return (
-                      <button 
-                        key={zone}
-                        onClick={() => handlePitchZoneClick(zone, 1)}
-                        onContextMenu={(e) => { e.preventDefault(); handlePitchZoneClick(zone, -1); }}
-                        className={`
-                          relative flex items-center justify-center rounded border transition-all active:scale-95
-                          ${isSelected ? 'bg-green-600 border-white text-white font-black shadow-lg' : 'bg-black/40 border-green-900/40 text-green-700 hover:border-green-600'}
-                          ${spans}
-                        `}
-                      >
-                        <span className="text-[10px]">Z{zone}</span>
+                      <div key={zone} className="relative">
+                        <button 
+                          onClick={() => handlePitchZoneClick(zone, 1)}
+                          onContextMenu={(e) => { e.preventDefault(); handlePitchZoneClick(zone, -1); }}
+                          className={`w-full h-full relative flex flex-col items-center justify-center border-2 transition-all rounded-xl overflow-hidden ${count > 0 ? 'bg-red-600/30 border-red-500/50' : 'bg-black/10 border-white/5 hover:border-green-600/30'}`}
+                        >
+                          <span className={`text-[10px] font-black absolute top-1.5 left-2 ${count > 0 ? 'text-red-400' : 'text-green-900/40'}`}>Z{zone}</span>
+                          {count > 0 && <span className="text-4xl font-black text-white drop-shadow-md">{count}</span>}
+                        </button>
                         {count > 0 && (
-                          <>
-                            <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black text-white text-[9px] font-black flex items-center justify-center border border-white shadow-sm">
-                              {count}
-                            </div>
-                            <div 
-                              onClick={(e) => handleClearPitchZone(e, zone)}
-                              role="button"
-                              className="absolute top-1 left-1 p-1 bg-black/40 hover:bg-black rounded-full text-white/70 hover:text-white transition-all cursor-pointer z-10"
-                            >
-                              <CloseIcon size={10} />
-                            </div>
-                          </>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-xl">
-                <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <Goal size={14} className="gold-text" /> Zonas do Gol (Defesa vs Gol)
-                </h3>
-                <p className="text-[8px] text-gray-600 uppercase font-bold mb-3">
-                  <span className="gold-text">DEFESA: Lado Esq.</span> • 
-                  <span className="text-red-500 ml-1">GOL: Lado Dir.</span> • 
-                  <span>Botão Direito: -1</span> • 
-                  <span>"X" Limpar</span>
-                </p>
-                <div className="relative aspect-[16/9] bg-black/40 border-4 border-gray-800 border-b-0 rounded-t-xl overflow-hidden grid grid-cols-3 grid-rows-3 gap-2 p-2">
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((zone) => {
-                    const data = goalZones[zone] || { saves: 0, goals: 0 };
-                    const hasActivity = data.saves > 0 || data.goals > 0;
-                    
-                    return (
-                      <div key={zone} className="relative group border border-gray-800 rounded-lg overflow-hidden flex shadow-inner">
-                        <button 
-                          onClick={() => handleGoalZoneAction(zone, 'saves', 1)}
-                          onContextMenu={(e) => { e.preventDefault(); handleGoalZoneAction(zone, 'saves', -1); }}
-                          className={`flex-1 flex flex-col items-center justify-center transition-all ${data.saves > 0 ? 'bg-gold/20' : 'hover:bg-gold/5'}`}
-                        >
-                          <span className={`text-[9px] font-black uppercase mb-1 ${data.saves > 0 ? 'gold-text' : 'text-gray-700'}`}>DEF</span>
-                          <span className={`text-xl font-black ${data.saves > 0 ? 'gold-text' : 'text-gray-800'}`}>{data.saves}</span>
-                        </button>
-                        <div className="w-px bg-gray-800 h-full flex items-center justify-center">
-                           <span className="bg-black text-gray-600 text-[8px] font-black p-0.5 rounded border border-gray-800 absolute z-10">{zone}</span>
-                        </div>
-                        <button 
-                          onClick={() => handleGoalZoneAction(zone, 'goals', 1)}
-                          onContextMenu={(e) => { e.preventDefault(); handleGoalZoneAction(zone, 'goals', -1); }}
-                          className={`flex-1 flex flex-col items-center justify-center transition-all ${data.goals > 0 ? 'bg-red-950/30' : 'hover:bg-red-900/5'}`}
-                        >
-                          <span className={`text-[9px] font-black uppercase mb-1 ${data.goals > 0 ? 'text-red-500' : 'text-gray-700'}`}>GOL</span>
-                          <span className={`text-xl font-black ${data.goals > 0 ? 'text-red-500' : 'text-gray-800'}`}>{data.goals}</span>
-                        </button>
-                        {hasActivity && (
-                          <button 
-                            onClick={(e) => handleClearGoalZone(e, zone)}
-                            className="absolute top-1 left-1/2 -translate-x-1/2 p-1 bg-black/60 hover:bg-black rounded-full text-white/50 hover:text-white transition-all z-20 opacity-0 group-hover:opacity-100"
-                          >
-                            <CloseIcon size={10} />
+                          <button onClick={(e) => { e.stopPropagation(); handleClearPitchZone(zone); }} className="absolute top-1 right-1 p-1 bg-black/40 rounded-md text-gray-400 hover:text-white transition-colors z-20">
+                            <CloseIcon size={12} />
                           </button>
                         )}
                       </div>
                     );
                   })}
+                  <div className="col-span-5 relative">
+                    <button 
+                      onClick={() => handlePitchZoneClick(11, 1)}
+                      onContextMenu={(e) => { e.preventDefault(); handlePitchZoneClick(11, -1); }}
+                      className={`w-full h-full relative flex flex-col items-center justify-center border-2 transition-all rounded-xl overflow-hidden ${pitchZones[11] > 0 ? 'bg-red-600/30 border-red-500/50' : 'bg-black/10 border-white/5 hover:border-green-600/30'}`}
+                    >
+                      <span className={`text-[10px] font-black absolute top-1.5 left-2 ${pitchZones[11] > 0 ? 'text-red-400' : 'text-green-900/40'}`}>Z11</span>
+                      {pitchZones[11] > 0 && <span className="text-5xl font-black text-white drop-shadow-md">{pitchZones[11]}</span>}
+                    </button>
+                    {pitchZones[11] > 0 && (
+                      <button onClick={(e) => { e.stopPropagation(); handleClearPitchZone(11); }} className="absolute top-1 right-1 p-1 bg-black/40 rounded-md text-gray-400 hover:text-white transition-colors z-20">
+                        <CloseIcon size={16} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="h-2 bg-gray-800 rounded-b-xl"></div>
+              </div>
+            </div>
+
+            {/* ZONA DO GOL (BALIZA) */}
+            <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-2xl relative overflow-hidden group">
+              <h3 className="text-xs font-black gold-text uppercase tracking-widest mb-1 flex items-center gap-2">
+                <Target size={14} className="gold-text" /> ZONAS DO GOL (DEFESA VS GOL)
+              </h3>
+              <p className="text-[8px] font-black uppercase mb-4 tracking-tighter uppercase">
+                <span className="text-amber-500">DEFESA: LADO ESQ.</span> • <span className="text-red-500">GOL: LADO DIR.</span> • BOTÃO DIREITO -1 • "X" LIMPAR
+              </p>
+              
+              <div className="bg-[#030308] border-2 border-blue-950/30 p-2 rounded-2xl shadow-inner aspect-[16/10] grid grid-cols-3 grid-rows-3 gap-1.5">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((zone) => {
+                  const data = goalZones[zone] || { saves: 0, goals: 0 };
+                  const hasData = data.saves > 0 || data.goals > 0;
+                  return (
+                    <div key={zone} className="relative border border-white/5 rounded-2xl overflow-hidden flex bg-black/40 shadow-inner group transition-colors hover:bg-white/[0.02]">
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 px-2 py-0.5 bg-[#1a1a1a] border-x border-b border-gray-800 rounded-b-lg flex items-center gap-1.5">
+                        <span className="text-[8px] font-black text-gray-600">{zone}</span>
+                        {hasData && (
+                          <button onClick={(e) => { e.stopPropagation(); handleClearGoalZone(zone); }} className="p-0.5 text-gray-700 hover:text-red-500 transition-colors">
+                            <CloseIcon size={10} />
+                          </button>
+                        )}
+                      </div>
+
+                      <button onClick={() => handleGoalZoneAction(zone, 'saves', 1)} onContextMenu={(e) => { e.preventDefault(); handleGoalZoneAction(zone, 'saves', -1); }} className={`flex-1 flex flex-col items-center justify-center gap-1 transition-all ${data.saves > 0 ? 'bg-blue-600/15' : 'hover:bg-white/5'}`}>
+                        <span className={`text-[8px] font-black ${data.saves > 0 ? 'text-blue-400' : 'text-gray-800'} uppercase tracking-tighter`}>DEF</span>
+                        <span className={`text-3xl font-black ${data.saves > 0 ? 'text-white' : 'text-gray-900'}`}>{data.saves}</span>
+                      </button>
+
+                      <div className="w-px bg-white/5 h-full shrink-0"></div>
+
+                      <button onClick={() => handleGoalZoneAction(zone, 'goals', 1)} onContextMenu={(e) => { e.preventDefault(); handleGoalZoneAction(zone, 'goals', -1); }} className={`flex-1 flex flex-col items-center justify-center gap-1 transition-all ${data.goals > 0 ? 'bg-red-600/15' : 'hover:bg-white/5'}`}>
+                        <span className={`text-[8px] font-black ${data.goals > 0 ? 'text-red-500' : 'text-gray-800'} uppercase tracking-tighter`}>GOL</span>
+                        <span className={`text-3xl font-black ${data.goals > 0 ? 'text-red-500' : 'text-gray-900'}`}>{data.goals}</span>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
         </div>
       ) : (
-        <div className="bg-card border border-gray-800 rounded-3xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-top-4 duration-500">
-           <div className="p-6 border-b border-gray-800 flex items-center justify-between">
-            <h2 className="text-white font-bold uppercase tracking-widest flex items-center gap-2">
-              <History className="gold-text" size={18} /> Histórico de Scouts Realizados
-            </h2>
+        <div className="bg-card border border-gray-800 rounded-3xl overflow-hidden shadow-2xl">
+          <div className="p-6 border-b border-gray-800 flex items-center justify-between">
+            <h2 className="text-white font-bold uppercase tracking-widest flex items-center gap-2"><History className="gold-text" size={18} /> Histórico de Scouts</h2>
           </div>
           <div className="divide-y divide-gray-800">
             {keeperScouts.length > 0 ? keeperScouts.map(sc => {
               const keeper = keepers.find(k => k.id === sc.goalkeeperId);
-              const isExpanded = expandedScoutId === sc.id;
-              const totalSaves = sc.specialActions.defesaBasica + sc.specialActions.defesaDificil + sc.specialActions.superSave;
-              const zoneGols = Object.values(sc.goalZones || {}).reduce((sum, z) => sum + (z.goals || 0), 0);
-              const criticalErrors = sc.specialActions.erroCritico || 0;
-              
               return (
-                <div key={sc.id} className="group hover:bg-white/[0.01] transition-colors">
-                  <div 
-                    className="p-5 flex items-center justify-between cursor-pointer"
-                    onClick={() => setExpandedScoutId(isExpanded ? null : sc.id)}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-gray-900 border border-gray-800 flex items-center justify-center font-black text-gold overflow-hidden">
-                        {keeper?.photo ? <img src={keeper.photo} className="w-full h-full object-cover" /> : keeper?.name.charAt(0)}
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-white">{keeper?.name || 'Atleta não encontrado'} vs {sc.opponent}</h3>
-                        <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">{new Date(sc.date + 'T00:00:00').toLocaleDateString()} • {sc.result}</p>
-                      </div>
+                <div key={sc.id} className="p-5 flex items-center justify-between hover:bg-white/[0.01] transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-gray-900 border border-gray-800 flex items-center justify-center font-black text-gold overflow-hidden">
+                      {keeper?.photo ? <img src={keeper.photo} alt={keeper.name} className="w-full h-full object-cover" /> : keeper?.name.charAt(0)}
                     </div>
-                    <div className="flex items-center gap-4">
-                       <div className="hidden md:flex flex-col items-end mr-4">
-                          <span className="text-[10px] font-black text-gold uppercase">{totalSaves} Defesas</span>
-                          {criticalErrors > 0 && <span className="text-[9px] font-black text-red-500 uppercase flex items-center gap-1"><ShieldAlert size={10}/> {criticalErrors} Erros Decisivos</span>}
-                          <span className={`text-[8px] font-black uppercase ${zoneGols > 0 ? 'text-red-500' : 'text-blue-400'}`}>
-                            {zoneGols > 0 ? `${zoneGols} Gols Sofridos` : 'Clean Sheet'}
-                          </span>
-                       </div>
-                       <button 
-                        onClick={(e) => { e.stopPropagation(); exportToPDF(sc); }}
-                        className="p-2 text-gray-400 hover:text-gold transition-colors"
-                        title="Gerar PDF"
-                      >
-                        <Download size={18} />
-                      </button>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); deleteScout(sc.id); }}
-                        className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                      {isExpanded ? <ChevronUp className="text-gold" /> : <ChevronDown className="text-gray-600" />}
+                    <div>
+                      <h3 className="text-sm font-bold text-white">{keeper?.name} vs {sc.opponent}</h3>
+                      <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">{new Date(sc.date + 'T00:00:00').toLocaleDateString('pt-BR')} • {sc.matchPosition}</p>
                     </div>
                   </div>
-                  {isExpanded && (
-                    <div className="px-5 pb-8 pt-2 animate-in slide-in-from-top-2">
-                       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                         {SCOUT_METRICS.map(m => {
-                           const val = sc.actions[m.id];
-                           if (val.pos === 0 && val.neg === 0) return null;
-                           return (
-                             <div key={m.id} className="bg-black/40 border border-gray-800 p-3 rounded-xl">
-                               <p className="text-[8px] text-gray-500 font-black uppercase truncate">{m.label}</p>
-                               <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-xs font-black text-green-500">+{val.pos}</span>
-                                  <span className="text-xs font-black text-red-500">-{val.neg}</span>
-                               </div>
-                             </div>
-                           );
-                         })}
-                       </div>
-                       <div className="mt-6 flex flex-wrap gap-4 p-4 bg-gray-900/50 border border-gray-800 rounded-2xl">
-                          <div className="flex items-center gap-2">
-                             <Goal size={14} className="gold-text" />
-                             <span className="text-[9px] font-black text-white uppercase tracking-widest">Mapa de Zonas:</span>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {Object.entries(sc.goalZones || {}).map(([zone, val]) => (
-                              <div key={zone} className="flex items-center gap-1.5 px-2.5 py-1 bg-black rounded-lg border border-gray-800 text-[10px] font-bold">
-                                 <span className="text-gray-500">Z{zone}</span>
-                                 <span className="gold-text">D:{val.saves}</span>
-                                 <span className="text-red-500">G:{val.goals}</span>
-                              </div>
-                            ))}
-                          </div>
-                       </div>
-                    </div>
-                  )}
+                  <button onClick={() => deleteScout(sc.id)} className="p-2 text-gray-600 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
                 </div>
               );
             }) : (
-              <div className="p-20 text-center">
-                 <Target size={48} className="text-gray-800 mx-auto mb-4" />
-                 <p className="text-gray-500 font-bold uppercase text-xs">Nenhum scout registrado no histórico.</p>
-              </div>
+              <div className="p-20 text-center text-gray-600 font-bold uppercase text-xs tracking-widest">Sem registros</div>
             )}
           </div>
         </div>

@@ -1,11 +1,13 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Goalkeeper, MatchScout, Evaluation } from '../types';
+import { Goalkeeper, MatchScout, Evaluation, Training, SupportRecord } from '../types';
 
 interface GoalkeeperContextType {
   keepers: Goalkeeper[];
   scouts: MatchScout[];
   evaluations: Evaluation[];
+  trainings: Training[];
+  supportRecords: SupportRecord[];
   setKeepers: React.Dispatch<React.SetStateAction<Goalkeeper[]>>;
   addKeeper: (keeper: Goalkeeper) => void;
   updateKeeper: (keeper: Goalkeeper) => void;
@@ -14,11 +16,18 @@ interface GoalkeeperContextType {
   deleteScout: (id: string) => void;
   addEvaluation: (evaluation: Evaluation) => void;
   deleteEvaluation: (id: string) => void;
+  addTraining: (training: Training) => void;
+  updateTraining: (training: Training) => void;
+  deleteTraining: (id: string) => void;
+  addSupportRecord: (record: SupportRecord) => void;
+  deleteSupportRecord: (id: string) => void;
 }
 
 const STORAGE_KEY_KEEPERS = 'gk_pro_keepers';
 const STORAGE_KEY_SCOUTS = 'gk_pro_scouts';
 const STORAGE_KEY_EVALUATIONS = 'gk_pro_evaluations';
+const STORAGE_KEY_TRAININGS = 'gk_pro_trainings';
+const STORAGE_KEY_SUPPORT = 'gk_pro_support';
 
 const INITIAL_KEEPERS: Goalkeeper[] = [
   {
@@ -56,6 +65,16 @@ export const GoalkeeperProvider: React.FC<{ children: ReactNode }> = ({ children
     return stored ? JSON.parse(stored) : [];
   });
 
+  const [trainings, setTrainings] = useState<Training[]>(() => {
+    const stored = localStorage.getItem(STORAGE_KEY_TRAININGS);
+    return stored ? JSON.parse(stored) : [];
+  });
+
+  const [supportRecords, setSupportRecords] = useState<SupportRecord[]>(() => {
+    const stored = localStorage.getItem(STORAGE_KEY_SUPPORT);
+    return stored ? JSON.parse(stored) : [];
+  });
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_KEEPERS, JSON.stringify(keepers));
   }, [keepers]);
@@ -67,6 +86,14 @@ export const GoalkeeperProvider: React.FC<{ children: ReactNode }> = ({ children
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_EVALUATIONS, JSON.stringify(evaluations));
   }, [evaluations]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_TRAININGS, JSON.stringify(trainings));
+  }, [trainings]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_SUPPORT, JSON.stringify(supportRecords));
+  }, [supportRecords]);
 
   const addKeeper = (keeper: Goalkeeper) => {
     setKeepers(prev => [keeper, ...prev]);
@@ -96,11 +123,33 @@ export const GoalkeeperProvider: React.FC<{ children: ReactNode }> = ({ children
     setEvaluations(prev => prev.filter(e => e.id !== id));
   };
 
+  const addTraining = (training: Training) => {
+    setTrainings(prev => [training, ...prev]);
+  };
+
+  const updateTraining = (training: Training) => {
+    setTrainings(prev => prev.map(t => t.id === training.id ? training : t));
+  };
+
+  const deleteTraining = (id: string) => {
+    setTrainings(prev => prev.filter(t => t.id !== id));
+  };
+
+  const addSupportRecord = (record: SupportRecord) => {
+    setSupportRecords(prev => [record, ...prev]);
+  };
+
+  const deleteSupportRecord = (id: string) => {
+    setSupportRecords(prev => prev.filter(r => r.id !== id));
+  };
+
   return (
     <GoalkeeperContext.Provider value={{ 
       keepers, 
       scouts, 
       evaluations, 
+      trainings,
+      supportRecords,
       setKeepers, 
       addKeeper, 
       updateKeeper, 
@@ -108,7 +157,12 @@ export const GoalkeeperProvider: React.FC<{ children: ReactNode }> = ({ children
       addScout, 
       deleteScout,
       addEvaluation,
-      deleteEvaluation
+      deleteEvaluation,
+      addTraining,
+      updateTraining,
+      deleteTraining,
+      addSupportRecord,
+      deleteSupportRecord
     }}>
       {children}
     </GoalkeeperContext.Provider>

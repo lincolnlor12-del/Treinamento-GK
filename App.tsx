@@ -10,6 +10,7 @@ import EvaluationPage from './pages/EvaluationPage';
 import TrainingPage from './pages/TrainingPage';
 import ScoutPage from './pages/ScoutPage';
 import ReportsPage from './pages/ReportsPage';
+import InterdisciplinaryPage from './pages/InterdisciplinaryPage';
 import { GoalkeeperProvider } from './context/GoalkeeperContext';
 
 const Sidebar = ({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (o: boolean) => void }) => {
@@ -123,6 +124,7 @@ const App: React.FC = () => {
                 <Route path="/avaliacoes" element={<EvaluationPage />} />
                 <Route path="/treinamentos" element={<TrainingPage />} />
                 <Route path="/scout" element={<ScoutPage />} />
+                <Route path="/interdisciplinar" element={<InterdisciplinaryPage />} />
                 <Route path="/relatorios" element={<ReportsPage />} />
               </Routes>
             </main>

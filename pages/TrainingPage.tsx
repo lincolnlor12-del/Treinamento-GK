@@ -22,8 +22,19 @@ import {
   Target,
   User,
   ShieldAlert,
-  Film
+  Film,
+  Activity,
+  Move
 } from 'lucide-react';
+import { 
+  Radar, 
+  RadarChart, 
+  PolarGrid, 
+  PolarAngleAxis, 
+  PolarRadiusAxis, 
+  ResponsiveContainer, 
+  Tooltip 
+} from 'recharts';
 import { CATEGORIES, EVALUATION_CRITERIA, PHYSICAL_STRUCTURE } from '../constants';
 import { Training, Exercise, Category } from '../types';
 import { useGoalkeepers } from '../context/GoalkeeperContext';
@@ -39,9 +50,11 @@ const getYoutubeId = (url: string) => {
   return (match && match[2].length === 11) ? match[2] : null;
 };
 
-const ScrollList = ({ items, selectedItems, onToggle, label, compact = false }: { items: string[], selectedItems: string[], onToggle: (val: string) => void, label: string, compact?: boolean }) => (
+const ScrollList = ({ items, selectedItems, onToggle, label, compact = false, icon: Icon }: { items: string[], selectedItems: string[], onToggle: (val: string) => void, label: string, compact?: boolean, icon?: any }) => (
   <div className="flex flex-col w-full h-full">
-    <label className="block text-[10px] font-black text-gray-500 uppercase mb-1 tracking-tight">{label}</label>
+    <label className="flex items-center gap-1.5 text-[10px] font-black text-gray-500 uppercase mb-1 tracking-tight">
+      {Icon && <Icon size={10} className="text-gold" />} {label}
+    </label>
     <div className="bg-black border border-gray-800 rounded-lg overflow-hidden flex-1 min-h-[80px]">
       <div className={`overflow-y-auto p-1.5 space-y-0.5 custom-scrollbar ${compact ? 'max-h-24' : 'max-h-40'}`}>
         {items.map(item => (
@@ -62,15 +75,13 @@ const ScrollList = ({ items, selectedItems, onToggle, label, compact = false }: 
 );
 
 const TrainingPage: React.FC = () => {
-  const { keepers } = useGoalkeepers();
+  const { keepers, trainings, addTraining, updateTraining, deleteTraining } = useGoalkeepers();
   const [viewMode, setViewMode] = useState<'daily' | 'stats'>('daily');
   const [showForm, setShowForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [trainings, setTrainings] = useState<Training[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   
-  // Stats Filters
   const [statsCategory, setStatsCategory] = useState<Category | 'Todas'>('Todas');
   const [statsKeeper, setStatsKeeper] = useState<string>('Todos');
 
@@ -86,7 +97,7 @@ const TrainingPage: React.FC = () => {
     videoUrl: ''
   });
 
-  const filteredKeepers = keepers.filter(k => k.category === newTraining.category);
+  const filteredKeepersForForm = keepers.filter(k => k.category === newTraining.category);
 
   const displayedTrainings = useMemo(() => {
     return selectedDate 
@@ -100,9 +111,10 @@ const TrainingPage: React.FC = () => {
     
     const monthTrainings = trainings.filter(t => {
       const d = new Date(t.date + 'T00:00:00');
+      const isCorrectMonth = d.getMonth() === month && d.getFullYear() === year;
       const categoryMatch = statsCategory === 'Todas' || t.category === statsCategory;
       const keeperMatch = statsKeeper === 'Todos' || t.goalkeepers.includes(statsKeeper);
-      return d.getMonth() === month && d.getFullYear() === year && categoryMatch && keeperMatch;
+      return isCorrectMonth && categoryMatch && keeperMatch;
     });
 
     const groups: Record<string, Record<string, number>> = {
@@ -123,7 +135,11 @@ const TrainingPage: React.FC = () => {
       totalSessions: monthTrainings.length,
       groups: Object.entries(groups).map(([name, items]) => ({
         name,
-        items: Object.entries(items).sort((a, b) => b[1] - a[1])
+        data: Object.entries(items).map(([subject, value]) => ({
+          subject: subject.length > 15 ? subject.substring(0, 12) + '...' : subject,
+          fullSubject: subject,
+          value
+        })).sort((a, b) => b.value - a.value)
       }))
     };
   }, [trainings, currentMonth, statsCategory, statsKeeper]);
@@ -144,9 +160,9 @@ const TrainingPage: React.FC = () => {
     };
 
     if (isEditing) {
-      setTrainings(prev => prev.map(t => t.id === training.id ? training : t));
+      updateTraining(training);
     } else {
-      setTrainings(prev => [training, ...prev]);
+      addTraining(training);
     }
     setShowForm(false);
   };
@@ -155,7 +171,6 @@ const TrainingPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
           <h1 className="text-2xl font-bold text-white uppercase tracking-tighter">Gestão de Treinamento</h1>
@@ -236,11 +251,14 @@ const TrainingPage: React.FC = () => {
                       {t.videoUrl && <Youtube size={14} className="text-red-500" />}
                     </h3>
                     <p className="text-[10px] gold-text font-black uppercase">{t.category}</p>
+                    <p className="text-[9px] text-gray-500 mt-1 uppercase font-bold">
+                      {t.goalkeepers.length} Goleiro(s) Participante(s)
+                    </p>
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => { setNewTraining(t); setIsEditing(true); setShowForm(true); }} className="p-2 text-gray-500 hover:text-gold"><Edit2 size={16}/></button>
-                  <button onClick={() => setTrainings(prev => prev.filter(i => i.id !== t.id))} className="p-2 text-gray-500 hover:text-red-500"><Trash2 size={16}/></button>
+                  <button onClick={() => deleteTraining(t.id)} className="p-2 text-gray-500 hover:text-red-500"><Trash2 size={16}/></button>
                 </div>
               </div>
             ))}
@@ -253,7 +271,6 @@ const TrainingPage: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Stats filtering block... same as before */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-card border border-gray-800 p-6 rounded-2xl shadow-lg">
             <div>
               <label className="block text-[10px] font-black text-gray-500 uppercase mb-2">Mesociclo</label>
@@ -265,14 +282,25 @@ const TrainingPage: React.FC = () => {
             </div>
             <div>
               <label className="block text-[10px] font-black text-gray-500 uppercase mb-2">Filtrar Categoria</label>
-              <select value={statsCategory} onChange={e => { setStatsCategory(e.target.value as any); setStatsKeeper('Todos'); }} className="w-full p-2.5 bg-black border border-gray-800 rounded-xl text-xs text-white outline-none focus:border-gold">
+              <select 
+                value={statsCategory} 
+                onChange={e => { 
+                  setStatsCategory(e.target.value as any); 
+                  setStatsKeeper('Todos'); 
+                }} 
+                className="w-full p-2.5 bg-black border border-gray-800 rounded-xl text-xs text-white outline-none focus:border-gold"
+              >
                 <option value="Todas">Todas</option>
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-[10px] font-black text-gray-500 uppercase mb-2">Filtrar Goleiro</label>
-              <select value={statsKeeper} onChange={e => setStatsKeeper(e.target.value)} className="w-full p-2.5 bg-black border border-gray-800 rounded-xl text-xs text-white outline-none focus:border-gold">
+              <select 
+                value={statsKeeper} 
+                onChange={e => setStatsKeeper(e.target.value)} 
+                className="w-full p-2.5 bg-black border border-gray-800 rounded-xl text-xs text-white outline-none focus:border-gold"
+              >
                 <option value="Todos">Todos</option>
                 {keepers.filter(k => statsCategory === 'Todas' || k.category === statsCategory).map(k => (
                   <option key={k.id} value={k.id}>{k.name}</option>
@@ -283,22 +311,70 @@ const TrainingPage: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {stats.groups.map(group => (
-              <div key={group.name} className="bg-card border border-gray-800 rounded-2xl p-6">
-                <h3 className="text-xs font-black text-gold uppercase tracking-widest mb-4 flex items-center gap-2">
+              <div key={group.name} className="bg-card border border-gray-800 rounded-2xl p-6 shadow-xl relative overflow-hidden group">
+                <h3 className="text-xs font-black text-gold uppercase tracking-widest mb-4 flex items-center gap-2 relative z-10">
                   <BarChart3 size={14} /> Bloco {group.name}
                 </h3>
-                <div className="space-y-3">
-                  {group.items.length > 0 ? group.items.map(([valence, count]) => (
-                    <div key={valence} className="space-y-1">
-                      <div className="flex justify-between text-[9px] font-bold uppercase text-gray-400">
-                        <span>{valence}</span>
-                        <span className="gold-text">{count}x</span>
-                      </div>
-                      <div className="h-1 bg-black border border-gray-800 rounded-full overflow-hidden">
-                        <div className="h-full gold-gradient rounded-full" style={{ width: `${(count / stats.totalSessions) * 100}%` }} />
-                      </div>
+                <div className="h-[300px] w-full mt-4 flex items-center justify-center relative z-10">
+                  {group.data.length >= 3 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RadarChart cx="50%" cy="50%" outerRadius="80%" data={group.data}>
+                        <PolarGrid stroke="#333" />
+                        <PolarAngleAxis 
+                          dataKey="subject" 
+                          tick={{ fill: '#666', fontSize: 9, fontWeight: 700 }} 
+                        />
+                        <PolarRadiusAxis 
+                          angle={30} 
+                          domain={[0, 'auto']} 
+                          tick={false} 
+                          axisLine={false} 
+                        />
+                        <Radar
+                          name={group.name}
+                          dataKey="value"
+                          stroke="#D4AF37"
+                          fill="#D4AF37"
+                          fillOpacity={0.4}
+                          strokeWidth={2}
+                          animationDuration={1500}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: '#111', 
+                            border: '1px solid #333', 
+                            borderRadius: '12px', 
+                            fontSize: '10px', 
+                            color: '#fff' 
+                          }}
+                          itemStyle={{ color: '#D4AF37' }}
+                          formatter={(value: any, name: any, props: any) => [value, props.payload.fullSubject]}
+                        />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  ) : group.data.length > 0 ? (
+                    <div className="flex flex-col items-center justify-center gap-4 w-full h-full">
+                       <div className="space-y-3 w-full max-w-[250px]">
+                          {group.data.map((item: any) => (
+                            <div key={item.fullSubject} className="space-y-1">
+                              <div className="flex justify-between text-[10px] font-bold text-gray-500 uppercase">
+                                <span>{item.fullSubject}</span>
+                                <span className="gold-text">{item.value}x</span>
+                              </div>
+                              <div className="h-1 bg-black border border-gray-800 rounded-full overflow-hidden">
+                                <div className="h-full gold-gradient rounded-full" style={{ width: `${(item.value / stats.totalSessions) * 100}%` }} />
+                              </div>
+                            </div>
+                          ))}
+                       </div>
+                       <p className="text-[9px] text-gray-600 italic uppercase">Gráfico de Teia requer pelo menos 3 objetivos trabalhados</p>
                     </div>
-                  )) : <p className="text-[10px] text-gray-600 italic">Sem registros neste período</p>}
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-center opacity-30">
+                      <BarChart3 size={32} className="text-gray-600 mb-2" />
+                      <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest">Sem registros neste período</p>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -306,10 +382,9 @@ const TrainingPage: React.FC = () => {
         </div>
       )}
 
-      {/* Form Modal (Daily Training) */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95 backdrop-blur-sm">
-          <div className="bg-card border border-gray-800 w-full max-w-6xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95">
+          <div className="bg-card border border-gray-800 w-full max-w-6xl max-h-[95vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95">
             <div className="p-4 border-b border-gray-800 flex items-center justify-between bg-card shrink-0">
               <h2 className="text-sm font-black text-white uppercase flex items-center gap-2">
                 <Dumbbell className="gold-text" size={18} /> {isEditing ? 'Editar Sessão' : 'Lançar Treino'}
@@ -317,9 +392,8 @@ const TrainingPage: React.FC = () => {
               <button onClick={() => setShowForm(false)} className="text-gray-600 hover:text-white transition-colors"><X size={24} /></button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Lateral Column: Info & Video */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-4 space-y-6">
                   <div className="bg-black/40 border border-gray-800 p-4 rounded-xl space-y-4">
                     <div className="grid grid-cols-2 gap-2">
@@ -338,7 +412,7 @@ const TrainingPage: React.FC = () => {
                     <div className="space-y-1">
                       <label className="text-[9px] font-black text-gray-600 uppercase">Goleiros Participantes</label>
                       <div className="max-h-32 overflow-y-auto bg-black border border-gray-800 rounded-lg p-1 space-y-1 custom-scrollbar">
-                        {filteredKeepers.length > 0 ? filteredKeepers.map(k => (
+                        {filteredKeepersForForm.length > 0 ? filteredKeepersForForm.map(k => (
                           <button key={k.id} onClick={() => toggleSelection('goalkeepers', k.id)} className={`w-full p-2 text-left text-[9px] font-bold rounded border transition-all ${newTraining.goalkeepers?.includes(k.id) ? 'bg-gold/10 border-gold gold-text' : 'bg-black border-transparent text-gray-500 hover:bg-gray-900'}`}>
                             {k.name}
                           </button>
@@ -357,8 +431,6 @@ const TrainingPage: React.FC = () => {
                         onChange={e => setNewTraining({...newTraining, videoUrl: e.target.value})}
                         className="w-full p-3 bg-black border border-gray-800 rounded-xl text-xs text-white outline-none focus:border-gold transition-all"
                       />
-                      
-                      {/* YouTube Player Preview */}
                       <div className="aspect-video bg-black border border-gray-800 rounded-xl overflow-hidden flex items-center justify-center relative group">
                         {videoId ? (
                           <iframe
@@ -382,18 +454,34 @@ const TrainingPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Main Content: Objectives */}
-                <div className="lg:col-span-8 space-y-6">
+                <div className="lg:col-span-8 space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <ScrollList label="Conteúdo Técnico Principal" items={TECHNICAL_OPTIONS} selectedItems={newTraining.technicalObjective || []} onToggle={v => toggleSelection('technicalObjective', v)} />
-                    <ScrollList label="Conteúdo Tático Principal" items={TACTICAL_OPTIONS} selectedItems={newTraining.tacticalObjective || []} onToggle={v => toggleSelection('tacticalObjective', v)} />
+                    <ScrollList label="Conteúdo Técnico Principal" icon={Target} items={TECHNICAL_OPTIONS} selectedItems={newTraining.technicalObjective || []} onToggle={v => toggleSelection('technicalObjective', v)} />
+                    <ScrollList label="Conteúdo Tático Principal" icon={Move} items={TACTICAL_OPTIONS} selectedItems={newTraining.tacticalObjective || []} onToggle={v => toggleSelection('tacticalObjective', v)} />
                   </div>
 
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                     <ScrollList label="Físico - MMSS" items={PHYSICAL_STRUCTURE.academic.mmss} selectedItems={newTraining.physicalObjective || []} onToggle={v => toggleSelection('physicalObjective', v)} compact />
-                     <ScrollList label="Físico - MMII" items={PHYSICAL_STRUCTURE.academic.mmii} selectedItems={newTraining.physicalObjective || []} onToggle={v => toggleSelection('physicalObjective', v)} compact />
-                     <ScrollList label="Físico - Campo" items={PHYSICAL_STRUCTURE.field} selectedItems={newTraining.physicalObjective || []} onToggle={v => toggleSelection('physicalObjective', v)} compact />
-                     <ScrollList label="Comportamental" items={BEHAVIORAL_OPTIONS} selectedItems={newTraining.behavioralObjective || []} onToggle={v => toggleSelection('behavioralObjective', v)} compact />
+                  <div className="space-y-4 pt-4 border-t border-gray-800/50">
+                    <h3 className="text-[10px] font-black text-white uppercase tracking-widest flex items-center gap-2">
+                      <Dumbbell size={14} className="gold-text" /> Treino Acadêmico / Fisiologia
+                    </h3>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                       <ScrollList label="MMSS" items={PHYSICAL_STRUCTURE.academic.mmss} selectedItems={newTraining.physicalObjective || []} onToggle={v => toggleSelection('physicalObjective', v)} compact />
+                       <ScrollList label="MMII" items={PHYSICAL_STRUCTURE.academic.mmii} selectedItems={newTraining.physicalObjective || []} onToggle={v => toggleSelection('physicalObjective', v)} compact />
+                       <ScrollList label="Core / Estabilidade" items={PHYSICAL_STRUCTURE.academic.core} selectedItems={newTraining.physicalObjective || []} onToggle={v => toggleSelection('physicalObjective', v)} compact />
+                       <ScrollList label="Mobilidade" items={PHYSICAL_STRUCTURE.academic.mobility} selectedItems={newTraining.physicalObjective || []} onToggle={v => toggleSelection('physicalObjective', v)} compact />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 pt-4 border-t border-gray-800/50">
+                    <h3 className="text-[10px] font-black text-white uppercase tracking-widest flex items-center gap-2">
+                      <Zap size={14} className="text-blue-500" /> Treino de Campo / Específico
+                    </h3>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                       <ScrollList label="Velocidade" items={PHYSICAL_STRUCTURE.academic.maxSpeed} selectedItems={newTraining.physicalObjective || []} onToggle={v => toggleSelection('physicalObjective', v)} compact />
+                       <ScrollList label="Reação" items={['Reação de Campo', 'Reação Cognitiva', 'Reação de Bloqueio']} selectedItems={newTraining.physicalObjective || []} onToggle={v => toggleSelection('physicalObjective', v)} compact />
+                       <ScrollList label="Agilidade" items={['Agilidade Específica', 'Agilidade em Circuito', 'Agilidade Lateral']} selectedItems={newTraining.physicalObjective || []} onToggle={v => toggleSelection('physicalObjective', v)} compact />
+                       <ScrollList label="Comportamental" items={BEHAVIORAL_OPTIONS} selectedItems={newTraining.behavioralObjective || []} onToggle={v => toggleSelection('behavioralObjective', v)} compact />
+                    </div>
                   </div>
                 </div>
               </div>
