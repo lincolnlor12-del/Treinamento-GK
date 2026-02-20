@@ -161,74 +161,66 @@ const ScoutPage: React.FC = () => {
             {/* Sidebar: Dados e Participação */}
             <div className="lg:col-span-4 space-y-6">
               <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-xl sticky top-20">
-                <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-6 flex items-center gap-2"><Trophy size={14} className="gold-text" /> Escalação e Partida</h3>
-                <div className="space-y-5">
-                  <div className="grid grid-cols-1 gap-4">
-                    <div>
-                      <label className={`block text-[10px] font-black uppercase mb-2 ${scoutingRole === 'Titular' ? 'gold-text' : 'text-gray-500'}`}>Titular</label>
-                      <select value={titularId} onChange={(e) => setTitularId(e.target.value)} className="w-full p-3 bg-black border border-gray-800 rounded-xl text-white text-xs font-bold outline-none focus:border-gold">
-                        <option value="">Selecione...</option>
-                        {keepers.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
-                      </select>
-                    </div>
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-500 uppercase mb-2">Atleta</label>
+                    <select value={titularId} onChange={(e) => setTitularId(e.target.value)} className="w-full p-3 bg-black border border-gray-800 rounded-xl text-white text-xs font-bold outline-none focus:border-gold">
+                      <option value="">Selecione...</option>
+                      {keepers.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
+                    </select>
                   </div>
 
-                  <div className="bg-black/60 p-1.5 rounded-2xl border border-gray-800 flex items-center gap-1.5 shadow-inner">
-                     <button onClick={() => setScoutingRole('Titular')} className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase transition-all flex items-center justify-center gap-2 ${scoutingRole === 'Titular' ? 'bg-gold text-black shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}>
-                       <Shield size={14} /> Titular
-                     </button>
-                     <button onClick={() => setScoutingRole('Reserva')} className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase transition-all flex items-center justify-center gap-2 ${scoutingRole === 'Reserva' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}>
-                       <ShieldX size={14} /> Reserva
-                     </button>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-500 uppercase mb-2">Adversário</label>
+                    <input type="text" placeholder="Ex: Grêmio" value={opponent} onChange={(e) => setOpponent(e.target.value)} className="w-full p-3 bg-black border border-gray-800 rounded-xl text-white text-xs font-bold outline-none focus:border-gold" />
                   </div>
 
-                  <div className="pt-4 border-t border-gray-800 space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="col-span-2">
-                        <label className="block text-[10px] font-black text-gray-500 uppercase mb-2">Adversário</label>
-                        <input type="text" value={opponent} onChange={(e) => setOpponent(e.target.value)} className="w-full p-3 bg-black border border-gray-800 rounded-xl text-white text-xs font-bold outline-none focus:border-gold" />
-                      </div>
-                    </div>
+                  <div className="flex gap-4">
+                    <button 
+                      onClick={() => setCleanSheet(!cleanSheet)}
+                      className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase transition-all border ${cleanSheet ? 'bg-white/10 border-white/20 text-white' : 'bg-black border-gray-800 text-gray-500 hover:border-gray-600'}`}
+                    >
+                      Clean Sheet
+                    </button>
+                    <button 
+                      onClick={() => handleOffensiveChange('goals', offensiveStats.goals > 0 ? -offensiveStats.goals : 1)}
+                      className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase transition-all border ${offensiveStats.goals > 0 || offensiveStats.assists > 0 ? 'bg-white/10 border-white/20 text-white' : 'bg-black border-gray-800 text-gray-500 hover:border-gray-600'}`}
+                    >
+                      Part. em Gol
+                    </button>
                   </div>
 
-                  {/* Pênaltis */}
-                  <div className="pt-4 space-y-3 border-t border-gray-800">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Pênaltis</p>
+                  <div className="pt-6 space-y-4 border-t border-gray-800">
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-black text-gray-400 uppercase flex items-center gap-1"><Check size={12} className="text-green-500" /> Positivo (Defesa)</span>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => handlePenaltyChange('pos', -1)} className="w-7 h-7 bg-gray-900 rounded border border-gray-800 text-gray-400 font-bold">-</button>
-                        <span className="w-4 text-center text-xs font-black text-green-500">{penalties.pos}</span>
-                        <button onClick={() => handlePenaltyChange('pos', 1)} className="w-7 h-7 rounded border font-bold bg-green-600 border-green-600 text-white">+</button>
+                      <span className="text-[11px] font-black text-gray-300 uppercase flex items-center gap-2"><Shield size={16} className="text-blue-400" /> Defesa Básica (+)</span>
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => handleSpecialAction('defesaBasica', -1)} className="w-8 h-8 bg-[#1a1b26] rounded-lg text-gray-400 font-bold flex items-center justify-center hover:bg-[#24283b] transition-colors"><Minus size={14} /></button>
+                        <span className="w-4 text-center text-sm font-black text-white">{specialActions.defesaBasica}</span>
+                        <button onClick={() => handleSpecialAction('defesaBasica', 1)} className="w-8 h-8 rounded-lg border border-gold text-gray-400 flex items-center justify-center hover:bg-gold/10 transition-colors"><Plus size={14} /></button>
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-black text-gray-400 uppercase flex items-center gap-1"><ShieldAlert size={12} className="text-red-500" /> Negativo (Gol)</span>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => handlePenaltyChange('neg', -1)} className="w-7 h-7 bg-gray-900 rounded border border-gray-800 text-gray-400 font-bold">-</button>
-                        <span className="w-4 text-center text-xs font-black text-red-500">{penalties.neg}</span>
-                        <button onClick={() => handlePenaltyChange('neg', 1)} className="w-7 h-7 rounded border font-bold bg-red-600 border-red-600 text-white">+</button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Participação Ofensiva */}
-                  <div className="pt-4 space-y-3 border-t border-gray-800">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Participação Ofensiva</p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-black text-gray-400 uppercase flex items-center gap-1"><Zap size={12} className="text-blue-400" /> Assistência</span>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => handleOffensiveChange('assists', -1)} className="w-7 h-7 bg-gray-900 rounded border border-gray-800 text-gray-400 font-bold">-</button>
-                        <span className="w-4 text-center text-xs font-black text-blue-400">{offensiveStats.assists}</span>
-                        <button onClick={() => handleOffensiveChange('assists', 1)} className="w-7 h-7 rounded border font-bold bg-blue-600 border-blue-600 text-white">+</button>
+                      <span className="text-[11px] font-black text-gray-300 uppercase flex items-center gap-2"><Zap size={16} className="text-yellow-500" /> Defesa Difícil (+)</span>
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => handleSpecialAction('defesaDificil', -1)} className="w-8 h-8 bg-[#1a1b26] rounded-lg text-gray-400 font-bold flex items-center justify-center hover:bg-[#24283b] transition-colors"><Minus size={14} /></button>
+                        <span className="w-4 text-center text-sm font-black text-white">{specialActions.defesaDificil}</span>
+                        <button onClick={() => handleSpecialAction('defesaDificil', 1)} className="w-8 h-8 rounded-lg border border-gold text-gray-400 flex items-center justify-center hover:bg-gold/10 transition-colors"><Plus size={14} /></button>
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-black text-gray-400 uppercase flex items-center gap-1"><Star size={12} className="gold-text" /> Gol Marcado</span>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => handleOffensiveChange('goals', -1)} className="w-7 h-7 bg-gray-900 rounded border border-gray-800 text-gray-400 font-bold">-</button>
-                        <span className="w-4 text-center text-xs font-black text-gold">{offensiveStats.goals}</span>
-                        <button onClick={() => handleOffensiveChange('goals', 1)} className="w-7 h-7 rounded border font-bold bg-gold border-gold text-black">+</button>
+                      <span className="text-[11px] font-black text-gray-300 uppercase flex items-center gap-2"><Trophy size={16} className="text-gold" /> Super Save (+)</span>
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => handleSpecialAction('superSave', -1)} className="w-8 h-8 bg-[#1a1b26] rounded-lg text-gray-400 font-bold flex items-center justify-center hover:bg-[#24283b] transition-colors"><Minus size={14} /></button>
+                        <span className="w-4 text-center text-sm font-black text-white">{specialActions.superSave}</span>
+                        <button onClick={() => handleSpecialAction('superSave', 1)} className="w-8 h-8 rounded-lg border border-gold text-gray-400 flex items-center justify-center hover:bg-gold/10 transition-colors"><Plus size={14} /></button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-black text-gray-300 uppercase flex items-center gap-2"><AlertCircle size={16} className="text-red-500" /> Erro Crítico (-)</span>
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => handleSpecialAction('erroCritico', -1)} className="w-8 h-8 bg-[#1a1b26] rounded-lg text-gray-400 font-bold flex items-center justify-center hover:bg-[#24283b] transition-colors"><Minus size={14} /></button>
+                        <span className="w-4 text-center text-sm font-black text-red-500">{specialActions.erroCritico}</span>
+                        <button onClick={() => handleSpecialAction('erroCritico', 1)} className="w-8 h-8 rounded-lg bg-red-600 text-white flex items-center justify-center hover:bg-red-500 transition-colors"><Plus size={14} /></button>
                       </div>
                     </div>
                   </div>

@@ -50,6 +50,24 @@ const getYoutubeId = (url: string) => {
   return (match && match[2].length === 11) ? match[2] : null;
 };
 
+const generateCalendarDays = (date: Date) => {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const firstDayOfMonth = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const days: (Date | null)[] = [];
+  // Add empty placeholders for days before the month starts
+  for (let i = 0; i < firstDayOfMonth; i++) {
+    days.push(null);
+  }
+  // Add the actual days of the month
+  for (let i = 1; i <= daysInMonth; i++) {
+    days.push(new Date(year, month, i));
+  }
+  return days;
+};
+
 const ScrollList = ({ items, selectedItems, onToggle, label, compact = false, icon: Icon }: { items: string[], selectedItems: string[], onToggle: (val: string) => void, label: string, compact?: boolean, icon?: any }) => (
   <div className="flex flex-col w-full h-full">
     <label className="flex items-center gap-1.5 text-[10px] font-black text-gray-500 uppercase mb-1 tracking-tight">
@@ -84,6 +102,8 @@ const TrainingPage: React.FC = () => {
   
   const [statsCategory, setStatsCategory] = useState<Category | 'Todas'>('Todas');
   const [statsKeeper, setStatsKeeper] = useState<string>('Todos');
+
+  const calendarDays = useMemo(() => generateCalendarDays(currentMonth), [currentMonth]);
 
   const [newTraining, setNewTraining] = useState<Partial<Training>>({
     date: new Date().toISOString().split('T')[0],
@@ -221,19 +241,32 @@ const TrainingPage: React.FC = () => {
             </div>
             
             <div className="grid grid-cols-7 gap-1">
-              {Array.from({ length: 31 }, (_, i) => {
-                const day = i + 1;
-                const d = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-                const dateStr = d.toISOString().split('T')[0];
+              {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((day, i) => (
+                <div key={i} className="text-center text-[9px] font-bold text-gray-700 uppercase">{day}</div>
+              ))}
+              {calendarDays.map((day, index) => {
+                if (!day) return <div key={`empty-${index}`} />;
+                
+                const dateStr = day.toISOString().split('T')[0];
                 const hasTraining = trainings.some(t => t.date === dateStr);
                 const isSelected = selectedDate === dateStr;
+                const isToday = new Date().toISOString().split('T')[0] === dateStr;
+
                 return (
                   <button 
-                    key={day} 
+                    key={dateStr} 
                     onClick={() => setSelectedDate(isSelected ? null : dateStr)}
-                    className={`aspect-square rounded flex items-center justify-center text-[10px] font-bold border transition-all ${isSelected ? 'bg-gold border-gold text-black' : hasTraining ? 'bg-gold/10 border-gold/40 text-gold' : 'bg-black border-gray-900 text-gray-600 hover:border-gray-700'}`}
+                    className={`aspect-square rounded flex items-center justify-center text-[10px] font-bold border transition-all relative
+                      ${isSelected 
+                        ? 'bg-gold border-gold text-black' 
+                        : hasTraining 
+                          ? 'bg-gold/10 border-gold/40 text-gold' 
+                          : 'bg-black border-gray-900 text-gray-600 hover:border-gray-700'}
+                      ${isToday && !isSelected ? 'border-gold/60' : ''}
+                    `}
                   >
-                    {day}
+                    {day.getDate()}
+                    {isToday && <span className="absolute bottom-0.5 w-1 h-1 bg-gold rounded-full"></span>}
                   </button>
                 );
               })}

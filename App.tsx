@@ -5,6 +5,7 @@ import { Menu, X, ChevronRight, UserCircle } from 'lucide-react';
 import { NAVIGATION } from './constants';
 import Dashboard from './pages/Dashboard';
 import GoalkeeperList from './pages/GoalkeeperList';
+import GoalkeeperProfile from './pages/GoalkeeperProfile';
 import CoachPage from './pages/CoachPage';
 import EvaluationPage from './pages/EvaluationPage';
 import TrainingPage from './pages/TrainingPage';
@@ -120,6 +121,7 @@ const App: React.FC = () => {
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/goleiros" element={<GoalkeeperList />} />
+                <Route path="/goleiro/:id" element={<GoalkeeperProfile />} />
                 <Route path="/treinadores" element={<CoachPage />} />
                 <Route path="/avaliacoes" element={<EvaluationPage />} />
                 <Route path="/treinamentos" element={<TrainingPage />} />

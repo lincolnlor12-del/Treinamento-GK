@@ -243,7 +243,7 @@ const GoalkeeperList: React.FC = () => {
 
               <div className="flex gap-2 relative z-10">
                 <button 
-                  onClick={() => handleEditKeeper(keeper)}
+                  onClick={() => navigate(`/goleiro/${keeper.id}`)}
                   className="flex-1 py-3 rounded-lg bg-gray-800 text-white text-[10px] font-black uppercase tracking-widest hover:bg-gray-700 active:scale-95 transition-all"
                 >
                   Ficha Completa

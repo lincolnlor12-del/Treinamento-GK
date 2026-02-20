@@ -90,14 +90,14 @@ const Dashboard: React.FC = () => {
 
   const aggregates = useMemo(() => {
     return filteredScouts.reduce((acc, s) => {
-      const technicalErrors = Object.values(s.actions || {}).reduce((sum, a) => sum + a.neg, 0);
+      const technicalErrors = Object.values(s.actions || {}).reduce((sum, a: any) => sum + a.neg, 0);
       const criticalErrors = s.specialActions?.erroCritico || 0;
       const superSaves = s.specialActions?.superSave || 0;
       const difficultSaves = s.specialActions?.defesaDificil || 0;
       const totalSaves = (s.specialActions?.defesaBasica || 0) + difficultSaves + superSaves;
       
-      const goalsFromZones = Object.values(s.goalZones || {}).reduce((sum, z) => sum + (z.goals || 0), 0);
-      const goalsConceded = s.cleanSheet ? 0 : Math.max(1, goalsFromZones); 
+      const goalsFromZones = Object.values(s.goalZones || {}).reduce((sum, z: any) => sum + (z.goals || 0), 0);
+      const goalsConceded = s.cleanSheet ? 0 : Math.max(1, goalsFromZones as number); 
       const shotsAgainst = totalSaves + goalsConceded;
 
       return {
@@ -120,9 +120,9 @@ const Dashboard: React.FC = () => {
 
   const technicalCorrections = useMemo(() => {
     return filteredScouts
-      .filter(s => (s.specialActions?.erroCritico || 0) > 0 || Object.values(s.actions || {}).reduce((sum, a) => sum + a.neg, 0) > 0)
+      .filter(s => (s.specialActions?.erroCritico || 0) > 0 || Object.values(s.actions || {}).reduce((sum, a: any) => sum + a.neg, 0) > 0)
       .map(s => {
-        const errorCount = (s.specialActions?.erroCritico || 0) + Object.values(s.actions || {}).reduce((sum, a) => sum + a.neg, 0);
+        const errorCount = (s.specialActions?.erroCritico || 0) + Object.values(s.actions || {}).reduce((sum, a: any) => sum + a.neg, 0);
         return {
           keeperName: keepers.find(k => k.id === s.goalkeeperId)?.name || 'Goleiro',
           errorCount,
@@ -145,7 +145,7 @@ const Dashboard: React.FC = () => {
         const totalSaves = catScouts.reduce((sum, s) => 
           sum + (s.specialActions?.defesaBasica || 0) + (s.specialActions?.defesaDificil || 0) + (s.specialActions?.superSave || 0), 0);
         const totalDifficult = catScouts.reduce((sum, s) => sum + (s.specialActions?.defesaDificil || 0) + (s.specialActions?.superSave || 0), 0);
-        const totalErrors = catScouts.reduce((sum, s) => sum + (s.specialActions?.erroCritico || 0) * 2 + Object.values(s.actions || {}).reduce((sum, a) => sum + a.neg, 0), 0);
+        const totalErrors = catScouts.reduce((sum, s) => sum + (s.specialActions?.erroCritico || 0) * 2 + Object.values(s.actions || {}).reduce((sum, a: any) => sum + a.neg, 0), 0);
         score = Math.min(100, Math.max(0, (totalSaves * 5 + totalDifficult * 10 - totalErrors * 8) / (catScouts.length || 1) + 60));
       }
 
