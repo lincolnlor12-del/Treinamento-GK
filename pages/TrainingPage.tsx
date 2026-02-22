@@ -103,6 +103,9 @@ const TrainingPage: React.FC = () => {
   const [statsCategory, setStatsCategory] = useState<Category | 'Todas'>('Todas');
   const [statsKeeper, setStatsKeeper] = useState<string>('Todos');
 
+  const [dailyCategory, setDailyCategory] = useState<Category | 'Todas'>('Todas');
+  const [dailyKeeper, setDailyKeeper] = useState<string>('Todos');
+
   const calendarDays = useMemo(() => generateCalendarDays(currentMonth), [currentMonth]);
 
   const [newTraining, setNewTraining] = useState<Partial<Training>>({
@@ -120,10 +123,18 @@ const TrainingPage: React.FC = () => {
   const filteredKeepersForForm = keepers.filter(k => k.category === newTraining.category);
 
   const displayedTrainings = useMemo(() => {
-    return selectedDate 
-      ? trainings.filter(t => t.date === selectedDate)
-      : trainings;
-  }, [trainings, selectedDate]);
+    let filtered = trainings;
+    if (selectedDate) {
+      filtered = filtered.filter(t => t.date === selectedDate);
+    }
+    if (dailyCategory !== 'Todas') {
+      filtered = filtered.filter(t => t.category === dailyCategory);
+    }
+    if (dailyKeeper !== 'Todos') {
+      filtered = filtered.filter(t => t.goalkeepers.includes(dailyKeeper));
+    }
+    return filtered;
+  }, [trainings, selectedDate, dailyCategory, dailyKeeper]);
 
   const stats = useMemo(() => {
     const month = currentMonth.getMonth();
@@ -274,6 +285,36 @@ const TrainingPage: React.FC = () => {
           </div>
 
           <div className="xl:col-span-3 space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4 bg-card border border-gray-800 p-4 rounded-2xl shadow-xl">
+              <div className="flex-1">
+                <label className="block text-[10px] font-black text-gray-500 uppercase mb-2">Filtrar Categoria</label>
+                <select 
+                  value={dailyCategory} 
+                  onChange={e => { 
+                    setDailyCategory(e.target.value as any); 
+                    setDailyKeeper('Todos'); 
+                  }} 
+                  className="w-full p-2.5 bg-black border border-gray-800 rounded-xl text-xs text-white outline-none focus:border-gold"
+                >
+                  <option value="Todas">Todas</option>
+                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-[10px] font-black text-gray-500 uppercase mb-2">Filtrar Goleiro</label>
+                <select 
+                  value={dailyKeeper} 
+                  onChange={e => setDailyKeeper(e.target.value)} 
+                  className="w-full p-2.5 bg-black border border-gray-800 rounded-xl text-xs text-white outline-none focus:border-gold"
+                >
+                  <option value="Todos">Todos</option>
+                  {keepers.filter(k => dailyCategory === 'Todas' || k.category === dailyCategory).map(k => (
+                    <option key={k.id} value={k.id}>{k.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             {displayedTrainings.map(t => (
               <div key={t.id} className="bg-card border border-gray-800 rounded-2xl p-5 hover:border-gold/30 transition-all flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -381,7 +422,7 @@ const TrainingPage: React.FC = () => {
                             color: '#fff' 
                           }}
                           itemStyle={{ color: '#D4AF37' }}
-                          formatter={(value: any, name: any, props: any) => [value, props.payload.fullSubject]}
+                          formatter={(value: unknown, name: unknown, props: { payload: { fullSubject: string } }) => [value, props.payload.fullSubject]}
                         />
                       </RadarChart>
                     </ResponsiveContainer>

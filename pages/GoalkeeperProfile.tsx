@@ -10,8 +10,7 @@ import {
   Shield, 
   Activity,
   Brain,
-  Crosshair,
-  Heart
+  Crosshair
 } from 'lucide-react';
 import { 
   Radar, 
@@ -20,12 +19,7 @@ import {
   PolarAngleAxis, 
   PolarRadiusAxis, 
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid
+  Tooltip
 } from 'recharts';
 
 const GoalkeeperProfile: React.FC = () => {

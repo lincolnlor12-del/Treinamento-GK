@@ -100,7 +100,7 @@ const ReportsPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-2xl relative overflow-hidden group">
                     <div className="flex items-center gap-3 mb-6 relative z-10"><Brain className="gold-text group-hover:scale-110 transition-transform" size={20} /><h2 className="text-sm font-bold text-white uppercase">GK AI Insights</h2></div>
-                    <div className={`p-4 bg-black/40 border border-gray-800 rounded-2xl min-h-[100px] relative z-10 ${loadingAI ? 'opacity-50' : 'opacity-100'}`}><p className="text-gray-300 italic text-xs leading-relaxed">"{summary}"</p></div>
+                    <div className={`p-4 bg-black/40 border border-gray-800 rounded-2xl min-h-[100px] relative z-10 ${loadingAI ? 'opacity-50' : 'opacity-100'}`}><p className="text-gray-300 italic text-xs leading-relaxed">&quot;{summary}&quot;</p></div>
                 </div>
                 <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-xl space-y-4">
                     <div className="flex items-center gap-3 mb-2"><Clock className="text-blue-500" size={20} /><h2 className="text-sm font-bold text-white uppercase">Dados Consolidados</h2></div>

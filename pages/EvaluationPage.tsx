@@ -7,14 +7,12 @@ import {
   ChevronRight, 
   User, 
   Calendar, 
-  CheckCircle2, 
   History, 
   Trash2, 
   AlertCircle,
   Clock,
   ChevronDown,
   ChevronUp,
-  Link as LinkIcon,
   Zap,
   Play
 } from 'lucide-react';

@@ -7,17 +7,12 @@ import {
   Brain, 
   GraduationCap, 
   Plus, 
-  Search, 
   User, 
-  Calendar, 
-  ShieldCheck, 
-  AlertTriangle, 
   X, 
   Trash2, 
   Save, 
   FileText,
-  Clock,
-  ArrowRight
+  Clock
 } from 'lucide-react';
 import { useGoalkeepers } from '../context/GoalkeeperContext';
 import { SupportArea, SupportRecord } from '../types';

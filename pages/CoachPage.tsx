@@ -6,7 +6,6 @@ import {
   Mail, 
   Phone, 
   Award, 
-  MoreVertical, 
   Shield, 
   Briefcase,
   UserCheck,
@@ -14,7 +13,6 @@ import {
   Save,
   User,
   Camera,
-  Upload,
   Trash2,
   AlertCircle,
   Edit2

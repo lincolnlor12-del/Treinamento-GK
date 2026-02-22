@@ -2,9 +2,29 @@
 import { GoogleGenAI } from "@google/genai";
 
 // Always initialize with strictly process.env.API_KEY as per coding guidelines
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Lazy initialization of the AI client to allow the app to run without an API key.
+let ai: GoogleGenAI | null = null;
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
-export const getPerformanceSummary = async (keeperName: string, evaluationData: any, scoutData: any) => {
+if (apiKey) {
+  ai = new GoogleGenAI({ apiKey });
+} else {
+  console.warn("VITE_GEMINI_API_KEY is not set. AI features will be disabled.");
+}
+
+interface EvaluationData {
+  subject: string;
+  A: number;
+  fullMark: number;
+}
+
+interface ScoutData {
+  totalSaves: number;
+  cleanSheets: number;
+  totalGames: number;
+}
+
+export const getPerformanceSummary = async (keeperName: string, evaluationData: EvaluationData[], scoutData: ScoutData) => {
   try {
     const prompt = `
       Você é um especialista em treinamento de goleiros de elite. 
@@ -17,6 +37,10 @@ export const getPerformanceSummary = async (keeperName: string, evaluationData: 
       2. Área crítica de desenvolvimento.
       3. Uma sugestão prática de exercício.
     `;
+
+    if (!ai) {
+      return "Análise inteligente indisponível. Configure a VITE_GEMINI_API_KEY.";
+    }
 
     // Use ai.models.generateContent with the appropriate gemini-3 model
     const response = await ai.models.generateContent({
