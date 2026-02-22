@@ -2,14 +2,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell } from 'recharts';
 import { Download, Brain, TrendingUp, Award, Zap, User, Shield, Target, Activity, FileText, Play, Link as LinkIcon, Clock, Crosshair, Goal, X as CloseIcon } from 'lucide-react';
-import { getPerformanceSummary } from '../geminiService';
+
 import { useGoalkeepers } from '../context/GoalkeeperContext';
 
 const ReportsPage: React.FC = () => {
   const { keepers, scouts, evaluations } = useGoalkeepers();
   const [selectedKeeperId, setSelectedKeeperId] = useState<string>(keepers[0]?.id || '');
-  const [summary, setSummary] = useState('Selecione um goleiro para iniciar a análise inteligente...');
-  const [loadingAI, setLoadingAI] = useState(false);
+  const [summary, setSummary] = useState('');
+
 
   const selectedKeeper = useMemo(() => keepers.find(k => k.id === selectedKeeperId), [keepers, selectedKeeperId]);
   const keeperEvaluations = useMemo(() => evaluations.filter(e => e.goalkeeperId === selectedKeeperId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [evaluations, selectedKeeperId]);
@@ -65,16 +65,7 @@ const ReportsPage: React.FC = () => {
     return { id: k.id, name: k.name, category: k.category, score: parseFloat(score.toFixed(1)), photo: k.photo };
   }).sort((a, b) => b.score - a.score), [keepers, evaluations]);
 
-  useEffect(() => {
-    const fetchAI = async () => {
-      if (!selectedKeeper) return;
-      setLoadingAI(true);
-      const res = await getPerformanceSummary(selectedKeeper.name, radarData, { totalSaves: scoutStats.totalSaves, cleanSheets: scoutStats.cleanSheets, totalGames: scoutStats.games });
-      setSummary(res || 'Análise não disponível.');
-      setLoadingAI(false);
-    };
-    if (selectedKeeperId) fetchAI();
-  }, [selectedKeeperId, radarData, scoutStats]);
+
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12 animate-in fade-in duration-500">
@@ -98,10 +89,7 @@ const ReportsPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-8 space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-2xl relative overflow-hidden group">
-                    <div className="flex items-center gap-3 mb-6 relative z-10"><Brain className="gold-text group-hover:scale-110 transition-transform" size={20} /><h2 className="text-sm font-bold text-white uppercase">GK AI Insights</h2></div>
-                    <div className={`p-4 bg-black/40 border border-gray-800 rounded-2xl min-h-[100px] relative z-10 ${loadingAI ? 'opacity-50' : 'opacity-100'}`}><p className="text-gray-300 italic text-xs leading-relaxed">&quot;{summary}&quot;</p></div>
-                </div>
+
                 <div className="bg-card border border-gray-800 rounded-3xl p-6 shadow-xl space-y-4">
                     <div className="flex items-center gap-3 mb-2"><Clock className="text-blue-500" size={20} /><h2 className="text-sm font-bold text-white uppercase">Dados Consolidados</h2></div>
                     <div className="grid grid-cols-2 gap-3">
